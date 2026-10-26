@@ -1,7 +1,14 @@
 // Plugin-agnostic WordPress contact-form check (mirrors checker.py). GET/HEAD only; never submits.
 import { safeFetch } from "./validate.js";
 const UA = "FormHeartbeat/0.3 (+uptime check; read-only; never submits forms)";
-export const CHALLENGE_PERSIST = 3;
+export const CHALLENGE_PERSIST = 3, UNREACHABLE_PERSIST = 3, RETRY_DELAY_MS = 1500;
+// transient = could be our network path, not the site: retry once, then UNVERIFIABLE until persistent
+const TRANSIENT = p => p.error === "network_error" || p.error === "timeout" || [502, 503, 504, 520, 521, 522, 523, 524].includes(p.status);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+export async function fetchRetry(url, o, delay = RETRY_DELAY_MS) {
+  let r = await safeFetch(url, o); if (!TRANSIENT(r)) return r;
+  if (delay) await sleep(delay); const r2 = await safeFetch(url, o); r2.retried = true; return r2;
+}
 export const PLUGINS = {
   cf7:        { form: /<form[^>]*class="[^"]*wpcf7-form/gi, submit: /wpcf7-submit|type="submit"/i, asset: "/contact-form-7/[^\"']*\\.js", req: true, ep: "cf7_rest" },
   wpforms:    { form: /<form[^>]*class="[^"]*wpforms-form/gi, submit: /wpforms-submit|type="submit"/i, asset: "/wpforms(?:-lite)?/assets/js/[^\"']*\\.js", req: true, ep: "ajax" },
@@ -55,13 +62,20 @@ export const restClass = s => endpointClass("cf7_rest", s);
 const finish = res => { res.result = res.problems.length ? "FAIL" : res.warnings.length ? "UNVERIFIABLE" : "OK"; return res; };
 
 /** Returns a minimal result object (no page bodies stored). */
-export async function check(url, { baseline = null, fetchImpl, resolve } = {}) {
+export async function check(url, { baseline = null, fetchImpl, resolve, retryDelay } = {}) {
   const b = baseline || {};
   const o = { fetchImpl, resolve, ua: UA };
   const res = { ts: new Date().toISOString(), url, problems: [], warnings: [], challenge: null };
-  const page = await safeFetch(url, o);
-  res.page_status = page.status; res.page_ms = page.ms ?? null;
+  const page = await fetchRetry(url, o, retryDelay);
+  res.page_status = page.status; res.page_ms = page.ms ?? null; if (page.retried) res.retried = true;
   const ch = page.error ? null : detectChallenge(page.status, page.body || "");
+  if (!ch && TRANSIENT(page)) {
+    res.transient = true; const streak = (b.unreachable_streak || 0) + 1;
+    const why = page.error || `page_status:${page.status}`;
+    if (streak >= UNREACHABLE_PERSIST) res.problems.push(`page_unreachable_persistent:${why}:${streak}_checks`);
+    else res.warnings.push(`transient:${why}`);
+    return finish(res);
+  }
   if (ch) {
     res.challenge = ch; res.warnings.push(`blocked_by_bot_protection:${ch}`);
     const streak = (b.challenge_streak || 0) + 1;
@@ -81,12 +95,16 @@ export async function check(url, { baseline = null, fetchImpl, resolve } = {}) {
     if (n === "generic") continue;
     const p = PLUGINS[n];
     if (d.script) {
-      const s = await safeFetch(new URL(d.script, page.url).toString(), { ...o, method: "HEAD" });
-      if (s.status !== 200) res.problems.push(`${n}:script_status:${s.error || s.status}`);
+      const su = new URL(d.script, page.url).toString();
+      let s = await fetchRetry(su, { ...o, method: "HEAD" }, retryDelay);
+      if (s.status === 405 || s.status === 501) s = await fetchRetry(su, o, retryDelay); // some servers reject HEAD
+      if (TRANSIENT(s)) res.warnings.push(`${n}:script_transient:${s.error || s.status}`);
+      else if (s.status !== 200) res.problems.push(`${n}:script_status:${s.error || s.status}`);
     } else if (p.req && OPTIMIZER_BUNDLE.test(page.body)) res.warnings.push(`${n}:asset_bundled_by_optimizer`); // cannot verify, not a failure
     else if (p.req) res.problems.push(`${n}:script_not_referenced`);
     if (p.ep && !(p.ep in res.endpoints)) {
-      const r = await safeFetch(new URL(ENDPOINTS[p.ep], page.url).toString(), o);
+      const r = await fetchRetry(new URL(ENDPOINTS[p.ep], page.url).toString(), o, retryDelay);
+      if (TRANSIENT(r)) { res.warnings.push(`${p.ep}_transient:${r.error || r.status}`); continue; }
       const cls = endpointClass(p.ep, r.status); res.endpoints[p.ep] = cls;
       if (cls === "protected") res.warnings.push(`${p.ep}_protected:${r.status}`);
       else if (cls === "broken") res.problems.push(`${p.ep}_status:${r.error || r.status}`);
@@ -101,6 +119,8 @@ export function updateBaseline(baseline, r) {
   const b = { ...(baseline || {}) };
   if (r.challenge) { b.challenge_streak = (b.challenge_streak || 0) + 1; return b; }
   b.challenge_streak = 0;
+  if (r.transient) { b.unreachable_streak = (b.unreachable_streak || 0) + 1; return b; }
+  b.unreachable_streak = 0;
   if ((r.result === "OK" || r.result === "UNVERIFIABLE") && r.plugins?.length && !b.verified)
     Object.assign(b, { verified: true, plugins: r.plugins, endpoints: r.endpoints, set: r.ts });
   return b;

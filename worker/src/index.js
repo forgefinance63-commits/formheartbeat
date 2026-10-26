@@ -25,7 +25,16 @@ async function runOne(env, acct, t, deps = {}) {
     const log = JSON.parse((await env.KV.get(`alerts:${acct}`)) || "[]"); log.push({ ...alert, url: t.url, ts: r.ts }); 
     await env.KV.put(`alerts:${acct}`, JSON.stringify(log.slice(-50))); console.log(JSON.stringify({ alert_recorded: alert.type, acct, url: t.url }));
   }
-  if (alert && t.alert_email) await createMailer(env, deps.fetchImpl).send(t.alert_email, alert);
+  if (alert && t.alert_email) {
+    const mailer = createMailer(env, deps.mailFetch || deps.fetchImpl);
+    const sent = await mailer.send(t.alert_email, alert);
+    console.log(JSON.stringify({ alert_delivery: sent.skipped || (sent.ok ? "sent" : "failed"), status: sent.status, acct, url: t.url }));
+    if (mailer.enabled && !sent.ok) { // delivery failed: undo dedupe so the next run retries the alert
+      state.alerted = alert.type === "recovered"; state.lastAlertKey = alert.type === "down" ? null : state.lastAlertKey;
+      await env.KV.put(sk, JSON.stringify(state));
+    }
+    alert.delivery = sent;
+  }
   return { result: r, alert };
 }
 export async function runAccount(env, acct, deps) {
@@ -49,7 +58,9 @@ export async function handle(req, env, deps = {}) {
   }
   if (req.method === "GET" && pathname === "/v1/status") {
     const out = []; for (const t of await getTargets(env.KV, acct)) out.push({ url: t.url, state: JSON.parse((await env.KV.get(`state:${acct}:${await sha256Hex(t.url)}`)) || "null") });
-    return j({ targets: out, alerts: JSON.parse((await env.KV.get(`alerts:${acct}`)) || "[]"), last_cron: JSON.parse((await env.KV.get("cron:last")) || "null") });
+    const log = JSON.parse((await env.KV.get("cron:log")) || "[]");
+    return j({ targets: out, alerts: JSON.parse((await env.KV.get(`alerts:${acct}`)) || "[]"), last_cron: JSON.parse((await env.KV.get("cron:last")) || "null"),
+      cron_punctuality: summarize(log), cron_log: log.slice(-96), alerts_email: createMailer(env).enabled ? "enabled" : "disabled" });
   }
   if (req.method === "POST" && pathname === "/v1/check") {
     if (!(await rateLimit(env.KV, acct, "check", MANUAL_CHECKS_PER_HOUR, 3600))) return j({ error: "rate_limited" }, 429);
@@ -57,12 +68,24 @@ export async function handle(req, env, deps = {}) {
   }
   return j({ error: "not_found" }, 404);
 }
+export const CRON_LOG_MAX = 672; // ~7 days at */15
+export function summarize(log) {
+  if (!log.length) return { n: 0 };
+  const d = log.map(e => e.delay_ms).sort((a, b) => a - b), q = p => d[Math.min(d.length - 1, Math.floor(p * d.length))];
+  let gaps = 0; for (let i = 1; i < log.length; i++) if (Date.parse(log[i].scheduled) - Date.parse(log[i - 1].scheduled) > 15 * 60e3 * 1.5) gaps++;
+  return { n: log.length, first: log[0].scheduled, last: log.at(-1).scheduled, delay_ms_p50: q(0.5), delay_ms_p95: q(0.95), delay_ms_max: d.at(-1), missed_slot_gaps: gaps };
+}
+export async function recordCron(env, e, startedMs, finishedMs, results) {
+  const entry = { scheduled: new Date(e.scheduledTime).toISOString(), started: new Date(startedMs).toISOString(), delay_ms: startedMs - e.scheduledTime, duration_ms: finishedMs - startedMs, n: results.length, results: results.map(x => x.result.result) };
+  const log = JSON.parse((await env.KV.get("cron:log")) || "[]"); log.push(entry);
+  await env.KV.put("cron:log", JSON.stringify(log.slice(-CRON_LOG_MAX)));
+  await env.KV.put("cron:last", JSON.stringify({ cron: e.cron, scheduled_time: entry.scheduled, started: entry.started, finished: new Date(finishedMs).toISOString(), accounts: results.length, results: entry.results }));
+  return entry;
+}
 export default {
   async fetch(req, env) { return handle(req, env); },
-  async scheduled(_e, env, ctx) {
-    const accts = Object.values(JSON.parse(env.API_KEYS || "{}"));
-    const started = new Date().toISOString();
-    ctx.waitUntil(Promise.all([...new Set(accts)].map(a => runAccount(env, a))).then(async r =>
-      env.KV.put("cron:last", JSON.stringify({ cron: _e.cron, scheduled_time: new Date(_e.scheduledTime).toISOString(), started, finished: new Date().toISOString(), accounts: r.length, results: r.flat().map(x => x.result.result) }))));
+  async scheduled(e, env, ctx) {
+    const accts = Object.values(JSON.parse(env.API_KEYS || "{}")); const started = Date.now();
+    ctx.waitUntil(Promise.all([...new Set(accts)].map(a => runAccount(env, a))).then(r => recordCron(env, e, started, Date.now(), r.flat())));
   },
 };

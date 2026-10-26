@@ -25,9 +25,10 @@
 {"ts": "2026-10-26T12:38:01+00:00", "event": "workflow_dispatch", "run_id": "40324017781", "url": "https://wordpress.org/", "expected": "FAIL_cf7_form_missing", "actual": "FAIL_cf7_form_missing", "match": true, "detail": {"timestamp": "2026-10-26T12:38:03+00:00", "url": "https://wordpress.org/", "ch
 ```
 
-## Schedule verification: PENDING
-No run with event == schedule had appeared as of 2026-10-26 13:06 UTC (15:06 Israel time), after waiting through the 13:00 UTC slot. GitHub often delays or skips the first scheduled runs of a newly created workflow. To verify later:
-`gh run list -R forgefinance63-commits/formheartbeat -w status-check -e schedule`
+## Schedule verification: PASSED (late)
+First run with event == schedule: **40346097875**, created 2026-10-26T15:06:49Z (**17:06 Israel time**), conclusion success.
+Earlier note (13:06 UTC / 15:06 Israel) recorded no scheduled run yet; the first one arrived ~2.5 h after the workflow was created. This confirms GitHub schedules work but can lag badly, so no cadence is promised.
+Verify: `gh run list -R forgefinance63-commits/formheartbeat -w status-check -e schedule`
 
 ## Caveats
 Scheduled runs can be delayed or dropped. Schedules are disabled after 60 days without repo activity (the commit-back keeps the repo active). The staleness banner shows when runs stop.

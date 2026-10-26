@@ -9,11 +9,11 @@ crons = ["*/15 * * * *"]  # free-plan-safe; no cadence promised
 
 [vars]
 ALERTS_ENABLED = "false"      # email alerts off until owner approves
-EMAIL_PROVIDER = "resend"     # or "mailchannels"
+EMAIL_PROVIDER = "brevo"      # or "resend" / "mailchannels"; disabled unless secret + ALERTS_ENABLED="true"
 
 # Secrets (set with `wrangler secret put`, never in code):
 #   API_KEYS              JSON {"<sha256 of api key>": "<account id>"}
-#   RESEND_API_KEY / MAILCHANNELS_API_KEY, ALERT_FROM
+#   BREVO_API_KEY (or RESEND_API_KEY / MAILCHANNELS_API_KEY), ALERT_FROM
 
 [[kv_namespaces]]
 binding = "KV"

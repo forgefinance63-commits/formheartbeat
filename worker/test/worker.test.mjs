@@ -5,7 +5,7 @@ import { validateUrlSyntax, validateUrl, safeFetch, isPrivateIp } from "../src/v
 import { analyze, check, restClass, updateBaseline, detectChallenge } from "../src/check.js";
 import { evaluate } from "../src/alerting.js";
 import { createMailer } from "../src/email.js";
-import { handle, MAX_TARGETS } from "../src/index.js";
+import { handle, MAX_TARGETS, runAccount, recordCron, summarize } from "../src/index.js";
 import { sha256Hex } from "../src/auth.js";
 
 const fx = n => readFileSync(new URL(`../../tests/fixtures/${n}.html`, import.meta.url), "utf8");
@@ -128,7 +128,7 @@ test("email: disabled by default; provider called via mock when enabled", async 
   const on = createMailer({ ALERTS_ENABLED: "true", EMAIL_PROVIDER: "resend", RESEND_API_KEY: "test", ALERT_FROM: "x@y.co" }, f);
   await on.send("a@b.co", { type: "down", url: "u", problems: ["p"] });
   assert.equal(f.calls[0].url, "https://api.resend.com/emails");
-  const mc = createMailer({ ALERTS_ENABLED: "true", EMAIL_PROVIDER: "mailchannels", ALERT_FROM: "x@y.co" }, f);
+  const mc = createMailer({ ALERTS_ENABLED: "true", EMAIL_PROVIDER: "mailchannels", MAILCHANNELS_API_KEY: "t", ALERT_FROM: "x@y.co" }, f);
   await mc.send("a@b.co", { type: "recovered", url: "u" }); assert.equal(f.calls[1].url, "https://api.mailchannels.net/tx/v1/send");
 });
 
@@ -178,4 +178,63 @@ test("bot challenges: WARN never FAIL; FAIL only when persistent and changed fro
   assert.deepEqual(seq, ["UNVERIFIABLE", "UNVERIFIABLE", "UNVERIFIABLE"]);
   let nb = null;
   for (let i = 0; i < 5; i++) { const r = await check(C, { fetchImpl: site2(fx("ch_cloudflare"), { status: 403 }), resolve: publicDNS, baseline: nb }); nb = updateBaseline(nb, r); assert.equal(r.result, "UNVERIFIABLE"); }
+});
+
+// ---------- Brevo ----------
+test("brevo: disabled without flag, secret or sender; correct request when enabled; never throws", async () => {
+  const f = mockFetch({ "https://api.brevo.com/v3/smtp/email": { status: 201, body: '{"messageId":"x"}' } });
+  assert.equal(createMailer({ BREVO_API_KEY: "k", ALERT_FROM: "a@b.co", EMAIL_PROVIDER: "brevo" }, f).reason, "alerts_disabled");
+  assert.equal(createMailer({ ALERTS_ENABLED: "true", ALERT_FROM: "a@b.co", EMAIL_PROVIDER: "brevo" }, f).reason, "missing_api_key");
+  assert.equal(createMailer({ ALERTS_ENABLED: "true", BREVO_API_KEY: "k" }, f).reason, "missing_sender");
+  let seen; const cap = async (u, o) => { seen = { u, o }; return new Response("{}", { status: 201 }); };
+  const m = createMailer({ ALERTS_ENABLED: "true", BREVO_API_KEY: "kk", ALERT_FROM: "a@b.co" }, cap);
+  assert.equal(m.enabled, true);
+  const r = await m.send("to@x.co", { type: "down", url: "https://s.example/", problems: ["contact_form_missing"] });
+  assert.equal(r.ok, true); assert.equal(seen.u, "https://api.brevo.com/v3/smtp/email"); assert.equal(seen.o.headers["api-key"], "kk");
+  const b = JSON.parse(seen.o.body); assert.deepEqual(b.to, [{ email: "to@x.co" }]); assert.equal(b.sender.email, "a@b.co"); assert.match(b.subject, /Check failing/); assert.match(b.textContent, /does not test form submission/);
+  const bad = createMailer({ ALERTS_ENABLED: "true", BREVO_API_KEY: "k", ALERT_FROM: "a@b.co" }, async () => { throw new Error("x"); });
+  assert.deepEqual(await bad.send("t@x.co", { type: "recovered", url: "u" }), { status: 0, ok: false, error: "network_error" });
+});
+test("runAccount: brevo called exactly once per incident (dedupe); failed delivery retried next run; off = no calls", async () => {
+  const site = "https://s.example/"; const mails = [];
+  let brevoStatus = 500;
+  const mailFetch = async (u, o) => { mails.push(JSON.parse(o.body).subject); return new Response("{}", { status: brevoStatus }); };
+  const fetchImpl = mockFetch({ [site]: { status: 200, body: "<html>no form</html>" } });
+  const mk = flag => ({ KV: memKV(), ALERTS_ENABLED: flag, BREVO_API_KEY: "k", ALERT_FROM: "a@b.co" });
+  const env = mk("true"); await env.KV.put("acct:a:targets", JSON.stringify([{ url: site, alert_email: "t@x.co" }]));
+  const d = { fetchImpl, mailFetch, resolve: publicDNS, retryDelay: 0 };
+  await runAccount(env, "a", d); assert.equal(mails.length, 0);
+  await runAccount(env, "a", d); assert.equal(mails.length, 1, "down attempted"); // provider 500
+  brevoStatus = 201; await runAccount(env, "a", d); assert.equal(mails.length, 2, "retried after failed delivery");
+  await runAccount(env, "a", d); await runAccount(env, "a", d); assert.equal(mails.length, 2, "deduped after success");
+  const env2 = mk("false"); await env2.KV.put("acct:a:targets", JSON.stringify([{ url: site, alert_email: "t@x.co" }]));
+  for (let i = 0; i < 3; i++) await runAccount(env2, "a", d); assert.equal(mails.length, 2, "disabled sends nothing");
+  assert.equal(JSON.parse(await env2.KV.get("alerts:a")).length, 1, "alert still recorded");
+});
+// ---------- transient errors ----------
+test("transient network errors: retried, UNVERIFIABLE, FAIL only when persistent", async () => {
+  const site = "https://s.example/"; let n = 0;
+  const flaky = async () => { n++; throw new Error("reset"); };
+  let b = null, r;
+  for (let i = 1; i <= 3; i++) { r = await check(site, { baseline: b, fetchImpl: flaky, resolve: publicDNS, retryDelay: 0 }); b = updateBaseline(b, r);
+    assert.equal(r.result, i < 3 ? "UNVERIFIABLE" : "FAIL"); }
+  assert.equal(n, 6, "one retry per check"); assert.match(r.problems[0], /page_unreachable_persistent:network_error:3/);
+  let k = 0; const once = async (u, o) => (k++ === 0 ? new Response("", { status: 503 }) : new Response(fx("cf7_ok"), { status: 200 }));
+  const r2 = await check(site, { fetchImpl: once, resolve: publicDNS, retryDelay: 0 }); assert.equal(r2.retried, true); assert.notEqual(r2.problems[0]?.startsWith("page"), true);
+  const b2 = updateBaseline({ unreachable_streak: 2 }, { result: "OK", plugins: [] }); assert.equal(b2.unreachable_streak, 0);
+});
+test("script HEAD 405 falls back to GET", async () => {
+  const html = '<form class="wpcf7-form"><input type="submit"></form><script src="https://s.example/wp-content/plugins/contact-form-7/includes/js/index.js"></script>';
+  const f = async (u, o) => u.endsWith("index.js") ? new Response("", { status: o.method === "HEAD" ? 405 : 200 }) : u.includes("wp-json") ? new Response("{}", { status: 200 }) : new Response(html, { status: 200 });
+  const r = await check("https://s.example/", { fetchImpl: f, resolve: publicDNS, retryDelay: 0 }); assert.equal(r.result, "OK", JSON.stringify(r.problems));
+});
+// ---------- cron punctuality ----------
+test("cron punctuality recorded and summarized; status exposes it", async () => {
+  const env = { KV: memKV() }; const t0 = Date.parse("2026-10-27T00:00:00Z");
+  for (const [i, dl] of [[0, 800], [1, 1200], [3, 400]]) await recordCron(env, { cron: "*/15 * * * *", scheduledTime: t0 + i * 900e3 }, t0 + i * 900e3 + dl, t0 + i * 900e3 + dl + 3000, []);
+  const s = summarize(JSON.parse(await env.KV.get("cron:log")));
+  assert.equal(s.n, 3); assert.equal(s.delay_ms_p50, 800); assert.equal(s.delay_ms_max, 1200); assert.equal(s.missed_slot_gaps, 1);
+  const key = "k".repeat(32); env.API_KEYS = JSON.stringify({ [await sha256Hex(key)]: "a" });
+  const st = await (await handle(new Request("https://w.example/v1/status", { headers: { authorization: `Bearer ${key}` } }), env)).json();
+  assert.equal(st.cron_punctuality.n, 3); assert.equal(st.alerts_email, "disabled");
 });
