@@ -1,10 +1,11 @@
 name = "formheartbeat"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
-# NOT DEPLOYED. Deployment waits for owner-provided Cloudflare API token.
+# Deployed to workers.dev (free plan). No paid features. workers_dev only, no custom routes.
+workers_dev = true
 
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/15 * * * *"]  # free-plan-safe; no cadence promised
 
 [vars]
 ALERTS_ENABLED = "false"      # email alerts off until owner approves
@@ -14,6 +15,6 @@ EMAIL_PROVIDER = "resend"     # or "mailchannels"
 #   API_KEYS              JSON {"<sha256 of api key>": "<account id>"}
 #   RESEND_API_KEY / MAILCHANNELS_API_KEY, ALERT_FROM
 
-# [[kv_namespaces]]
-# binding = "KV"
-# id = "<kv-namespace-id>"
+[[kv_namespaces]]
+binding = "KV"
+id = "9d8920a193474051be0b711049b51e70"

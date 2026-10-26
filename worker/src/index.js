@@ -1,4 +1,4 @@
-// FormHeartbeat Worker (NOT deployed). Authenticated API only; no public trigger.
+// FormHeartbeat Worker (deployed to workers.dev, free plan; see evidence/worker-deploy.md). Authenticated API only; no public trigger.
 import { check, updateBaseline } from "./check.js";
 import { validateUrl } from "./validate.js";
 import { evaluate } from "./alerting.js";
@@ -21,6 +21,10 @@ async function runOne(env, acct, t, deps = {}) {
   state.last = { result: r.result, problems: r.problems, warnings: r.warnings, page_status: r.page_status, ts: r.ts };
   await env.KV.put(sk, JSON.stringify(state));
   console.log(JSON.stringify({ acct, url: t.url, result: r.result, problems: r.problems, warnings: r.warnings }));
+  if (alert) { // alerts recorded in state/logs; email only if ALERTS_ENABLED and target has an address
+    const log = JSON.parse((await env.KV.get(`alerts:${acct}`)) || "[]"); log.push({ ...alert, url: t.url, ts: r.ts }); 
+    await env.KV.put(`alerts:${acct}`, JSON.stringify(log.slice(-50))); console.log(JSON.stringify({ alert_recorded: alert.type, acct, url: t.url }));
+  }
   if (alert && t.alert_email) await createMailer(env, deps.fetchImpl).send(t.alert_email, alert);
   return { result: r, alert };
 }
@@ -43,6 +47,10 @@ export async function handle(req, env, deps = {}) {
     ts.push({ url: v.url.toString(), alert_email: b.alert_email || null });
     await env.KV.put(`acct:${acct}:targets`, JSON.stringify(ts)); return j({ ok: true, count: ts.length }, 201);
   }
+  if (req.method === "GET" && pathname === "/v1/status") {
+    const out = []; for (const t of await getTargets(env.KV, acct)) out.push({ url: t.url, state: JSON.parse((await env.KV.get(`state:${acct}:${await sha256Hex(t.url)}`)) || "null") });
+    return j({ targets: out, alerts: JSON.parse((await env.KV.get(`alerts:${acct}`)) || "[]"), last_cron: JSON.parse((await env.KV.get("cron:last")) || "null") });
+  }
   if (req.method === "POST" && pathname === "/v1/check") {
     if (!(await rateLimit(env.KV, acct, "check", MANUAL_CHECKS_PER_HOUR, 3600))) return j({ error: "rate_limited" }, 429);
     return j((await runAccount(env, acct, deps)).map(x => x.result));
@@ -53,6 +61,8 @@ export default {
   async fetch(req, env) { return handle(req, env); },
   async scheduled(_e, env, ctx) {
     const accts = Object.values(JSON.parse(env.API_KEYS || "{}"));
-    ctx.waitUntil(Promise.all([...new Set(accts)].map(a => runAccount(env, a))));
+    const started = new Date().toISOString();
+    ctx.waitUntil(Promise.all([...new Set(accts)].map(a => runAccount(env, a))).then(async r =>
+      env.KV.put("cron:last", JSON.stringify({ cron: _e.cron, scheduled_time: new Date(_e.scheduledTime).toISOString(), started, finished: new Date().toISOString(), accounts: r.length, results: r.flat().map(x => x.result.result) }))));
   },
 };

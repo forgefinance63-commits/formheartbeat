@@ -1,7 +1,7 @@
-# Deploy runbook: Cloudflare Worker (workers.dev, free plan). NOT DEPLOYED.
+# Deploy runbook: Cloudflare Worker (workers.dev, free plan). DEPLOYED 2026-10-27.
 
-## Status (2026-10-27)
-- `CLOUDFLARE_API_TOKEN` is **not present** in the build env, so nothing has been deployed and no alert has been sent.
+## Status (2026-10-27 00:35 IST): DEPLOYED (see evidence/worker-deploy.md)
+- Deployed to https://formheartbeat.formheartbeat.workers.dev on the free plan. Alerts are still disabled.
 - Per-account target limit is **10**, matching the pilot offer. Rate limits: 20 writes/hour and 6 manual checks/hour.
 - Tests: Python 18/18 and Worker 13/13. This includes the optimizer-bundle test and the `MAX_TARGETS == 10` check.
 

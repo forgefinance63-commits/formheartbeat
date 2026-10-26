@@ -3,3 +3,5 @@ __pycache__/
 /private/
 prospects*.csv
 *.jsonl
+node_modules/
+.wrangler/
