@@ -1,6 +1,17 @@
 {
  "https://contactform7.com/contact/": {
   "rest_class": "reachable",
-  "set": "2026-10-26T21:06:47+00:00"
+  "set": "2026-10-26T21:26:31+00:00",
+  "challenge_streak": 0,
+  "verified": true,
+  "plugins": [
+   "cf7"
+  ],
+  "endpoints": {
+   "cf7_rest": "reachable"
+  }
+ },
+ "https://wordpress.org/": {
+  "challenge_streak": 0
  }
 }
