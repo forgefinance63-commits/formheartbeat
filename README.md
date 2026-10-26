@@ -49,7 +49,7 @@ Schedule punctuality is recorded each run by `ci/punctuality.py` into `metrics/s
 
 ### Status monitor
 
-`.github/workflows/status.yml` runs every 30 min (`*/30 * * * *`) plus `workflow_dispatch`. It checks a fixed test list with `ci/run_status.py`: contactform7.com/contact = expected `OK`, wordpress.org = expected `FAIL_cf7_form_missing`. It appends JSON lines to `status/checks.log`, rebuilds `docs/index.html` (GitHub Pages) and commits back using `GITHUB_TOKEN` (`contents: write`).
+`.github/workflows/status.yml` runs every 30 min (`*/30 * * * *`) plus `workflow_dispatch`. It checks a fixed test list with `ci/run_status.py`: contactform7.com/contact = expected `OK`, wordpress.org = expected `FAIL_contact_form_missing`. It appends JSON lines to `status/checks.log`, rebuilds `docs/index.html` (GitHub Pages) and commits back using `GITHUB_TOKEN` (`contents: write`).
 
 **Heartbeat:** the page computes the age of the last run in the browser and shows **STALE** if there has been no run in 90 min.
 
