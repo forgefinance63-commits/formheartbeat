@@ -1,0 +1,25 @@
+{
+ "last_run_utc": "2026-10-26T12:38:01+00:00",
+ "event": "workflow_dispatch",
+ "run_id": "40324017781",
+ "rows": [
+  {
+   "ts": "2026-10-26T12:38:01+00:00",
+   "event": "workflow_dispatch",
+   "run_id": "40324017781",
+   "url": "https://contactform7.com/contact/",
+   "expected": "OK",
+   "actual": "OK",
+   "match": true
+  },
+  {
+   "ts": "2026-10-26T12:38:01+00:00",
+   "event": "workflow_dispatch",
+   "run_id": "40324017781",
+   "url": "https://wordpress.org/",
+   "expected": "FAIL_cf7_form_missing",
+   "actual": "FAIL_cf7_form_missing",
+   "match": true
+  }
+ ]
+}
