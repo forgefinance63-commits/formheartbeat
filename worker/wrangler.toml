@@ -8,7 +8,7 @@ workers_dev = true
 crons = ["*/15 * * * *"]  # free-plan-safe; no cadence promised
 
 [vars]
-ALERTS_ENABLED = "false"      # email alerts off until owner approves
+ALERTS_ENABLED = "true"       # internal-test recipient only (forgefinance63@gmail.com)
 EMAIL_PROVIDER = "brevo"      # or "resend" / "mailchannels"; disabled unless secret + ALERTS_ENABLED="true"
 
 # Secrets (set with `wrangler secret put`, never in code):

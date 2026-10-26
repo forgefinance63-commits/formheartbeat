@@ -32,3 +32,9 @@
 | Cloudflare Email Routing `send_email` binding | No new vendor | Free | Needs a domain on Cloudflare and a verified destination address. **Blocked: no domain.** |
 | GitHub Actions + Gmail SMTP | No | Free | Needs a Gmail app password as a repo secret. **Not available** (the owner said so). |
 | **Fallback with no new account:** the Worker records `operator_alert` in its logs and KV state, and the owner reads it with `wrangler tail`, a status endpoint or GitHub Issues | No | Free | Implemented (`operator_alert` log and state). Not push delivery. |
+
+## Box deploy notes (2026-10-27)
+- Set `CLOUDFLARE_ACCOUNT_ID` explicitly (the token can see one account, but wrangler v3 still prompts non-interactively): `export CLOUDFLARE_ACCOUNT_ID=<account id from wrangler whoami>`.
+- If `npx wrangler` fails with `EACCES: mkdir '/node_modules/.cache/wrangler'`, create `worker/node_modules` first (`mkdir -p worker/node_modules`; gitignored) so wrangler caches locally.
+- Secrets are piped from files, never echoed: `tr -d '\n' < /path/to/key | npx wrangler@3 secret put BREVO_API_KEY`; `printf '%s' sender@example | npx wrangler@3 secret put ALERT_FROM`.
+- Email sends only when `ALERTS_ENABLED="true"` AND `BREVO_API_KEY` AND `ALERT_FROM` are set, and only to a target's `alert_email`.
