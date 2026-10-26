@@ -157,7 +157,7 @@ test("detects WPForms/Gravity/Elementor/Ninja/Fluent/generic, assets checked, GE
   assert.equal((await check(C, { fetchImpl: site2(fx("wpforms"), { ajax: 403 }), resolve: publicDNS })).result, "WARN");
 });
 test("bot challenges: WARN never FAIL; FAIL only when persistent and changed from verified baseline", async () => {
-  for (const [f, st, v] of [["ch_sgcaptcha", 202, "siteground_sgcaptcha"], ["ch_cloudflare", 403, "cloudflare"], ["ch_sucuri", 403, "sucuri"], ["ch_generic", 202, "generic"]]) {
+  for (const [f, st, v] of [["ch_sgcaptcha", 202, "siteground_sgcaptcha"], ["ch_cloudflare", 403, "cloudflare"], ["ch_sucuri", 403, "sucuri"], ["ch_generic", 202, "generic"], ["ch_modsec", 406, "modsecurity"]]) {
     const r = await check(C, { fetchImpl: site2(fx(f), { status: st }), resolve: publicDNS });
     assert.deepEqual([r.result, r.challenge, r.problems], ["WARN", v, []], f);
   }

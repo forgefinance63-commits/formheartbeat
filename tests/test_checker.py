@@ -51,6 +51,9 @@ class T(unittest.TestCase):
             r = checker.check(U, fake(fx(name + ".html"), calls=calls))
             self.assertEqual((r["plugins"], r["result"]), ([name], "OK"), (name, r))
             self.assertTrue(all(m in ("GET", "HEAD") for m, _ in calls))
+    def test_elementor_free_runtime_counts_as_asset(self):
+        h = fx("elementor.html").replace("/elementor-pro/assets/js/frontend.min.js", "/elementor/assets/js/webpack.runtime.min.js")
+        self.assertEqual(checker.check(U, fake(h))["result"], "OK")
     def test_plugin_asset_404_fails(self):
         for name in ("wpforms", "elementor", "ninja", "fluent", "gravity"):
             r = checker.check(U, fake(fx(name + ".html"), script=404))
@@ -65,7 +68,7 @@ class T(unittest.TestCase):
     def test_challenges_warn_never_fail(self):
         for f, st, vendor in (("ch_sgcaptcha", 202, "siteground_sgcaptcha"), ("ch_cloudflare", 403, "cloudflare"),
                               ("ch_cloudflare", 503, "cloudflare"), ("ch_sucuri", 403, "sucuri"), ("ch_generic", 202, "generic"),
-                              ("ch_sgcaptcha", 200, "siteground_sgcaptcha")):
+                              ("ch_sgcaptcha", 200, "siteground_sgcaptcha"), ("ch_modsec", 406, "modsecurity")):
             r = checker.check(U, fake(fx(f + ".html"), page_status=st))
             self.assertEqual((r["result"], r["challenge"]), ("WARN", vendor), (f, st, r))
             self.assertEqual(r["problems"], [])

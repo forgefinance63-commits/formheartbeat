@@ -6,7 +6,7 @@ export const PLUGINS = {
   cf7:        { form: /<form[^>]*class="[^"]*wpcf7-form/gi, submit: /wpcf7-submit|type="submit"/i, asset: "/contact-form-7/[^\"']*\\.js", req: true, ep: "cf7_rest" },
   wpforms:    { form: /<form[^>]*class="[^"]*wpforms-form/gi, submit: /wpforms-submit|type="submit"/i, asset: "/wpforms(?:-lite)?/assets/js/[^\"']*\\.js", req: true, ep: "ajax" },
   gravity:    { form: /<form[^>]*id=['"]gform_\d+/gi, submit: /gform_button|type=['"]submit/i, asset: "/gravityforms/js/[^\"']*\\.js", req: false, ep: null },
-  elementor:  { form: /<form[^>]*class="[^"]*elementor-form/gi, submit: /elementor-button|type="submit"/i, asset: "/elementor-pro/assets/js/[^\"']*\\.js", req: true, ep: "ajax" },
+  elementor:  { form: /<form[^>]*class="[^"]*elementor-form/gi, submit: /elementor-button|type="submit"/i, asset: "/elementor(?:-pro)?/assets/js/[^\"']*\\.js", req: true, ep: "ajax" },
   ninja:      { form: /class="[^"]*nf-form-cont/gi, submit: null, asset: "/ninja-forms/[^\"']*\\.js", req: true, ep: "ajax" },
   fluent:     { form: /<form[^>]*class="[^"]*frm-fluent-form/gi, submit: /ff-btn-submit|type="submit"/i, asset: "/fluentform/[^\"']*\\.js", req: true, ep: "ajax" },
   formidable: { form: /<form[^>]*class="[^"]*frm-show-form/gi, submit: /frm_button_submit|type="submit"/i, asset: "/formidable/[^\"']*\\.js", req: false, ep: "ajax" },
@@ -16,6 +16,7 @@ const CHALLENGE = {
   siteground_sgcaptcha: [[/sgcaptcha/i], []],
   cloudflare: [[/<title>\s*Just a moment/i, /cf-browser-verification/i, /cf_chl_opt/i], [/challenge-platform/i, /cf-ray/i, /cloudflare/i]],
   sucuri: [[/sucuri_cloudproxy_js/i, /Sucuri WebSite Firewall/i], [/sucuri/i]],
+  modsecurity: [[], [/Mod_?Security/i]],
   generic: [[], [/captcha/i, /verify (?:that )?you are (?:a )?human/i, /bot protection/i, /are you a robot/i]],
 };
 const genericForms = html => (html.match(/<form\b[\s\S]*?<\/form>/gi) || []).filter(f =>
@@ -29,7 +30,7 @@ export function detectForms(html) {
 export function detectChallenge(status, body) {
   for (const [vendor, [strong, weak]] of Object.entries(CHALLENGE)) {
     if (strong.some(r => r.test(body)) && (status !== 200 || !Object.keys(detectForms(body)).length)) return vendor;
-    if ([202, 403, 429, 503].includes(status) && weak.some(r => r.test(body))) return vendor;
+    if ([202, 403, 406, 429, 503].includes(status) && weak.some(r => r.test(body))) return vendor;
   }
   return null;
 }

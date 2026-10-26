@@ -14,7 +14,7 @@ PLUGINS = {
     "cf7":        dict(form=r'<form[^>]*class="[^"]*wpcf7-form', submit=r'wpcf7-submit|type="submit"', asset=r'/contact-form-7/[^"\']*\.js', req=True, ep="cf7_rest"),
     "wpforms":    dict(form=r'<form[^>]*class="[^"]*wpforms-form', submit=r'wpforms-submit|type="submit"', asset=r'/wpforms(?:-lite)?/assets/js/[^"\']*\.js', req=True, ep="ajax"),
     "gravity":    dict(form=r'<form[^>]*id=[\'"]gform_\d+', submit=r'gform_button|type=[\'"]submit', asset=r'/gravityforms/js/[^"\']*\.js', req=False, ep=None),
-    "elementor":  dict(form=r'<form[^>]*class="[^"]*elementor-form', submit=r'elementor-button|type="submit"', asset=r'/elementor-pro/assets/js/[^"\']*\.js', req=True, ep="ajax"),
+    "elementor":  dict(form=r'<form[^>]*class="[^"]*elementor-form', submit=r'elementor-button|type="submit"', asset=r'/elementor(?:-pro)?/assets/js/[^"\']*\.js', req=True, ep="ajax"),
     "ninja":      dict(form=r'class="[^"]*nf-form-cont', submit=None, asset=r'/ninja-forms/[^"\']*\.js', req=True, ep="ajax"),  # form is JS-rendered
     "fluent":     dict(form=r'<form[^>]*class="[^"]*frm-fluent-form', submit=r'ff-btn-submit|type="submit"', asset=r'/fluentform/[^"\']*\.js', req=True, ep="ajax"),
     "formidable": dict(form=r'<form[^>]*class="[^"]*frm-show-form', submit=r'frm_button_submit|type="submit"', asset=r'/formidable/[^"\']*\.js', req=False, ep="ajax"),
@@ -24,6 +24,7 @@ CHALLENGE = {  # vendor: (strong markers valid even on 200, weak markers valid o
     "siteground_sgcaptcha": ([r'sgcaptcha'], []),
     "cloudflare": ([r'<title>\s*Just a moment', r'cf-browser-verification', r'cf_chl_opt'], [r'challenge-platform', r'cf-ray', r'cloudflare']),
     "sucuri": ([r'sucuri_cloudproxy_js', r'Sucuri WebSite Firewall'], [r'sucuri']),
+    "modsecurity": ([], [r'Mod_Security', r'ModSecurity']),
     "generic": ([], [r'captcha', r'verify (?:that )?you are (?:a )?human', r'bot protection', r'are you a robot']),
 }
 CONTACT_PATHS = ["/contact", "/contact-us", "/get-in-touch", "/quote"]
@@ -47,7 +48,7 @@ def http(url, method="GET", fetch=None):
 def detect_challenge(status, body):
     for vendor, (strong, weak) in CHALLENGE.items():
         if any(re.search(p, body, re.I) for p in strong) and (status != 200 or not detect_forms(body)): return vendor
-        if status in (202, 403, 429, 503) and any(re.search(p, body, re.I) for p in weak): return vendor
+        if status in (202, 403, 406, 429, 503) and any(re.search(p, body, re.I) for p in weak): return vendor
     return None
 
 def _generic_forms(html):
