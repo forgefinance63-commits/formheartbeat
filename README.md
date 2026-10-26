@@ -1,19 +1,18 @@
-# FormHeartbeat checker (v0.1)
+# FormHeartbeat checker (v0.2)
 
 ## The promise (strictly provable)
 
-**We verify:**
-1. The page is reachable (HTTP 200, with response time).
-2. A Contact Form 7 form is present in the served HTML (`form.wpcf7-form`, plus a submit control).
-3. The CF7 assets and endpoint respond: the referenced CF7 script returns 200, and the `/wp-json/contact-form-7/v1` REST base answers (200/401/403 count as alive).
+**We verify, per check, and only at the moment of the check:**
+1. **Page reachable**: HTTP 200 (response time recorded).
+2. **CF7 form present**: `form.wpcf7-form` and a submit control are in the served HTML.
+3. **CF7 assets/endpoint responding**: the referenced CF7 script returns 200. The REST base `/wp-json/contact-form-7/v1` is classified as:
+   - `200` means **reachable** (OK)
+   - `401/403` means **protected/blocked, so we cannot verify it**. That gives **WARN**, not OK and not FAIL. It only becomes FAIL if it **changed from the site's recorded baseline** (e.g. reachable → protected).
+   - anything else (404, 5xx, network error) means **broken** (FAIL)
 
-**We do NOT verify** that submissions succeed or that leads arrive. No form is ever submitted, so email/SMTP delivery, spam filtering, CAPTCHA, CRM sync, and submit-time errors are all out of scope. An "OK" result means "the form is there and its plumbing answers". It does not mean "leads are being delivered".
+**We do NOT verify, and this is NOT proof of,** form submission succeeding or leads/emails being delivered. No form is ever submitted. SMTP/mail delivery, spam filtering, CAPTCHA, CRM sync and submit-time JS errors are all out of scope.
 
-
-External, read-only health check for a WordPress page that should contain a **Contact Form 7** form.
-
-Usage: `python3 checker.py URL [URL...]` → prints JSON per URL, appends one JSON line to `logs/checks.log` (UTC timestamps). Exit code 0 = all OK, 1 = any FAIL.
-Tests: `python3 -m unittest discover -s tests -v` (stdlib only, no network).
+**No cadence or alert-time promise yet.** We will not promise "checked every N minutes" or "alerted within N minutes" until the punctuality metrics (`metrics/`) justify it.
 
 ## What it does (per URL)
 1. ONE `GET` of the page (UA `FormHeartbeat/0.1`, 20s timeout). Status must be 200.
@@ -37,11 +36,35 @@ Tests: `python3 -m unittest discover -s tests -v` (stdlib only, no network).
 - Content served differently to bots vs. users (WAF/geo/cookie walls).
 End-to-end delivery testing (marked test submission to an agreed inbox) is a separate, opt-in mode requiring the site owner's written permission — not implemented.
 
-## Cloudflare Worker (not deployed)
+## Cloudflare Worker (hardened, NOT deployed)
 
-`worker/` holds the same core logic as an ES-module Worker: a `scheduled()` handler on a Cron Trigger (`*/15 * * * *`), targets from the `TARGETS` var, and logs via `console.log` JSON plus optional `CHECKS_KV` / `CHECKS_DB` (D1, see `schema.sql`) bindings. Local: `node worker/test.mjs`; `npx wrangler dev --test-scheduled`. **Deploy is pending a Cloudflare API token from the owner. Do not deploy without it.**
+`worker/` (deployment waits for the owner's Cloudflare API token):
+- **Auth only, with no public trigger.** Every HTTP endpoint (`GET/POST /v1/targets`, `POST /v1/check`) needs `Authorization: Bearer <key>`. `API_KEYS` is a Worker *secret* that maps the SHA-256 of each key to an account, compared in constant time. Checks also run from the Cron `scheduled()` handler.
+- **Limits:** at most 5 targets per account; 6 manual checks per hour and 20 writes per hour per account (KV fixed window); request body capped at 4 KB.
+- **URL validation (SSRF):**
+  - https only, port 443 only, no userinfo
+  - no IP literals or decimal/hex IP forms
+  - no localhost/.local/.internal/.corp-style or metadata hostnames
+  - **every DNS-resolved A/AAAA address must be public** (DoH lookup): private, loopback, link-local, CGNAT, multicast and IMDS ranges are blocked, including IPv4-mapped IPv6
+  - redirects are followed manually (max 3) and **each hop is re-validated**
+  - 10 s timeout, 1 MB body cap
+  - Remaining risk: DNS can change between our DoH lookup and Cloudflare's own fetch (a TOCTOU gap). Cloudflare Workers can't reach private networks anyway, so this is defense in depth.
+- **Minimal data:** KV stores only target URL, optional alert email, last status fields and baseline. Page HTML is never stored.
+- **Alerting:**
+  - alerts after **2 consecutive FAILs**
+  - a single **recovery** notice
+  - **dedupe**: no repeat alerts while the problem set is unchanged; it re-alerts if the problem changes
+  - WARN never counts as a failure
+- **Email:** behind a provider abstraction (`resend` | `mailchannels`). It is **disabled** (`ALERTS_ENABLED="false"`), and keys come only from secrets.
+- **Tests:** `node --test worker/test/`, covering SSRF, DNS rebinding, redirects, size cap, REST classes, baseline, alerting, mailer mock, auth and rate limits.
 
-## GitHub Actions status monitor
+## GitHub Actions / Pages: capability proof only
+
+**This repo and its GitHub Pages site are a technical capability proof, not a commercial service.** No commercial site is or will be hosted on Pages.
+
+Schedule punctuality is recorded each run by `ci/punctuality.py` into `metrics/schedule_punctuality.csv`, comparing the expected */30 slot with the actual start.
+
+### Status monitor
 
 `.github/workflows/status.yml` runs every 30 min (`*/30 * * * *`) plus `workflow_dispatch`. It checks a fixed test list with `ci/run_status.py`: contactform7.com/contact = expected `OK`, wordpress.org = expected `FAIL_cf7_form_missing`. It appends JSON lines to `status/checks.log`, rebuilds `docs/index.html` (GitHub Pages) and commits back using `GITHUB_TOKEN` (`contents: write`).
 

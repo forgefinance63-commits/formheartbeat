@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: status
   cancel-in-progress: false
@@ -21,11 +22,14 @@ jobs:
         id: run
         run: python ci/run_status.py
         continue-on-error: true
+      - name: Record schedule punctuality metrics
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: python ci/punctuality.py "${{ github.repository }}" || true
       - name: Commit status back (keeps repo active)
         run: |
           git config user.name "formheartbeat-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add status docs
+          git add status docs metrics
           git commit -m "status: ${{ github.event_name }} run ${{ github.run_id }}" || exit 0
           git pull --rebase -q && git push
       - name: Fail if expectations mismatched

@@ -30,9 +30,9 @@ def analyze_html(html, base):
               re.findall(r'<form[^>]*action="([^"]*)"[^>]*class="[^"]*wpcf7-form', html, re.I)
     return {"cf7_wrapper": wrapper, "cf7_form_count": len(forms), "submit_control": has_submit, "script_url": script}
 
-def check(url, fetch=None):
+def check(url, fetch=None, baseline=None):
     ts = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-    res = {"timestamp": ts, "url": url, "checks": {}, "problems": []}
+    res = {"timestamp": ts, "url": url, "checks": {}, "problems": [], "warnings": []}
     page = http(url, "GET", fetch)
     res["checks"]["page"] = {"status": page["status"], "ms": page["ms"], "error": page["error"]}
     if page["status"] != 200:
@@ -55,11 +55,21 @@ def check(url, fetch=None):
         p = urlparse(url); rest = f"{p.scheme}://{p.netloc}/wp-json/contact-form-7/v1"
         r = http(rest, "GET", fetch)
         res["checks"]["rest_base"] = {"url": rest, "status": r["status"], "error": r["error"]}
-        # 200 = namespace exposed; 401/403 = REST locked down (common, not necessarily broken); 404/5xx/None = warning
-        if r["status"] is None or r["status"] >= 500 or r["status"] == 404:
+        res["rest_class"] = rest_class(r["status"])
+        if res["rest_class"] == "protected":
+            res["warnings"].append(f"rest_endpoint_protected:{r['status']} (cannot verify)")
+        elif res["rest_class"] != "reachable":
             res["problems"].append(f"rest_base_status:{r['status'] or r['error']}")
-    res["result"] = "OK" if not res["problems"] else "FAIL"
+        if baseline and baseline.get("rest_class") and baseline["rest_class"] != res["rest_class"]:
+            res["problems"].append(f"rest_baseline_changed:{baseline['rest_class']}->{res['rest_class']}")
+    res["result"] = "FAIL" if res["problems"] else ("WARN" if res["warnings"] else "OK")
     return res
+
+def rest_class(status):
+    """200 = endpoint reachable; 401/403 = protected/blocked (cannot verify); else broken."""
+    if status == 200: return "reachable"
+    if status in (401, 403): return "protected"
+    return "broken"
 
 def main(argv):
     if len(argv) < 2: print("usage: checker.py URL [URL...]"); return 2
@@ -69,7 +79,7 @@ def main(argv):
         line = json.dumps(r)
         print(json.dumps(r, indent=2))
         with open("logs/checks.log", "a") as f: f.write(line + "\n")
-        rc |= r["result"] != "OK"
+        rc |= r["result"] == "FAIL"
     return rc
 
 if __name__ == "__main__": sys.exit(main(sys.argv))

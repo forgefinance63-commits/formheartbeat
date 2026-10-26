@@ -9,13 +9,18 @@ event = os.environ.get("GITHUB_EVENT_NAME", "local"); run_id = os.environ.get("G
 now = datetime.datetime.now(datetime.timezone.utc)
 os.makedirs("status", exist_ok=True); os.makedirs("docs", exist_ok=True)
 rows = []
+BL = "status/baselines.json"
+baselines = json.load(open(BL)) if os.path.exists(BL) else {}
 for url, exp in TARGETS:
-    r = check(url)
-    actual = "OK" if r["result"] == "OK" else "FAIL_" + "_".join(r["problems"])
+    r = check(url, baseline=baselines.get(url))
+    if r.get("rest_class") and url not in baselines:
+        baselines[url] = {"rest_class": r["rest_class"], "set": now.isoformat(timespec="seconds")}
+    actual = r["result"] if r["result"] in ("OK", "WARN") else "FAIL_" + "_".join(r["problems"])
     line = {"ts": now.isoformat(timespec="seconds"), "event": event, "run_id": run_id, "url": url,
             "expected": exp, "actual": actual, "match": actual == exp, "detail": r}
     open("status/checks.log", "a").write(json.dumps(line) + "\n")
     rows.append(line)
+json.dump(baselines, open(BL, "w"), indent=1)
 json.dump({"last_run_utc": now.isoformat(timespec="seconds"), "event": event, "run_id": run_id,
            "rows": [{k: v for k, v in x.items() if k != "detail"} for x in rows]},
           open("docs/status.json", "w"), indent=1)
@@ -27,7 +32,7 @@ page = f"""<!doctype html><meta charset=utf-8><title>FormHeartbeat status</title
 <div id=stale></div>
 <p>Last run: <b>{now:%Y-%m-%d %H:%M:%S} UTC</b> / <b>{il:%Y-%m-%d %H:%M:%S} Israel time</b> · event: <b>{event}</b> · run <a href="https://github.com/{os.environ.get('GITHUB_REPOSITORY','')}/actions/runs/{run_id}">{run_id}</a></p>
 <table><tr><th>URL</th><th>Expected</th><th>Actual</th><th>Match</th></tr>{tr}</table>
-<p><small>Read-only checks: page reachable, CF7 form present, CF7 script + REST base respond. Does NOT verify submissions or lead delivery.</small></p>
+<p><small>Read-only checks: page reachable, CF7 form present, CF7 script + REST base respond. Capability proof only, not a commercial service. Does NOT verify submissions or lead delivery. No check cadence or alert time is promised.</small></p>
 <script>
 const last=Date.parse("{now.isoformat()}");const m=(Date.now()-last)/60000;const s=document.getElementById('stale');
 if(m>90){{s.textContent='⚠️ STALE: no run for '+Math.round(m)+' min (threshold 90)';s.style.background='#fdd'}}

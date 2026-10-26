@@ -1,67 +1,55 @@
-// FormHeartbeat CF7 checker core as a Cloudflare Worker (ES module).
-// Read-only: one GET of the page, GET of the CF7 script, GET of the REST base. Never submits forms.
-const UA = "FormHeartbeat/0.1 (+uptime check; read-only; contact: owner)";
+// FormHeartbeat Worker (NOT deployed). Authenticated API only; no public trigger.
+import { check } from "./check.js";
+import { validateUrl } from "./validate.js";
+import { evaluate } from "./alerting.js";
+import { createMailer } from "./email.js";
+import { authenticate, rateLimit, sha256Hex } from "./auth.js";
+export const MAX_TARGETS = 5, MANUAL_CHECKS_PER_HOUR = 6, WRITES_PER_HOUR = 20;
+const j = (o, s = 200) => Response.json(o, { status: s });
 
-async function get(url, method = "GET") {
-  const t = Date.now();
-  try {
-    const r = await fetch(url, { method, headers: { "User-Agent": UA }, redirect: "follow" });
-    const body = method === "GET" ? await r.text() : "";
-    return { status: r.status, ms: Date.now() - t, body, url: r.url };
-  } catch (e) {
-    return { status: 0, ms: Date.now() - t, body: "", error: String(e) };
-  }
+async function getTargets(kv, acct) { return JSON.parse((await kv.get(`acct:${acct}:targets`)) || "[]"); }
+async function runOne(env, acct, t, deps = {}) {
+  const id = await sha256Hex(t.url); const sk = `state:${acct}:${id}`;
+  const prev = JSON.parse((await env.KV.get(sk)) || "null");
+  const r = await check(t.url, { baseline: prev?.baseline, ...deps });
+  const { state, alert } = evaluate(prev, r);
+  state.baseline = prev?.baseline || (r.rest_class ? { rest_class: r.rest_class, set: r.ts } : null);
+  // minimal stored data: status fields only, no HTML
+  state.last = { result: r.result, problems: r.problems, warnings: r.warnings, page_status: r.page_status, ts: r.ts };
+  await env.KV.put(sk, JSON.stringify(state));
+  console.log(JSON.stringify({ acct, url: t.url, result: r.result, problems: r.problems, warnings: r.warnings }));
+  if (alert && t.alert_email) await createMailer(env, deps.fetchImpl).send(t.alert_email, alert);
+  return { result: r, alert };
 }
-
-export function analyze(html) {
-  const forms = (html.match(/<form[^>]*class="[^"]*wpcf7-form/g) || []).length;
-  const submit = /wpcf7-submit/.test(html);
-  const m = html.match(/(?:src|href)=["']([^"']*contact-form-7\/[^"']*\.js[^"']*)["']/);
-  return { forms, submit, script: m ? m[1].replace(/&#038;|&amp;/g, "&") : null };
+export async function runAccount(env, acct, deps) {
+  const out = []; for (const t of await getTargets(env.KV, acct)) out.push(await runOne(env, acct, t, deps)); return out;
 }
-
-export async function check(url) {
-  const res = { timestamp: new Date().toISOString(), url, problems: [] };
-  const page = await get(url);
-  res.page_status = page.status; res.page_ms = page.ms;
-  if (page.status !== 200) res.problems.push(`page_status:${page.status}`);
-  const a = analyze(page.body);
-  res.cf7_form_count = a.forms; res.submit_control = a.submit;
-  if (!a.forms) res.problems.push("cf7_form_missing");
-  else if (!a.submit) res.problems.push("submit_control_missing");
-  if (!a.script) { if (a.forms) res.problems.push("cf7_script_not_referenced"); }
-  else {
-    const s = new URL(a.script, page.url || url).toString();
-    const sr = await get(s); res.script = s; res.script_status = sr.status;
-    if (sr.status !== 200) res.problems.push(`script_status:${sr.status}`);
+export async function handle(req, env, deps = {}) {
+  const acct = await authenticate(req, env);
+  if (!acct) return j({ error: "unauthorized" }, 401);
+  const { pathname } = new URL(req.url);
+  if (req.method === "GET" && pathname === "/v1/targets") return j(await getTargets(env.KV, acct));
+  if (req.method === "POST" && pathname === "/v1/targets") {
+    if (!(await rateLimit(env.KV, acct, "write", WRITES_PER_HOUR, 3600))) return j({ error: "rate_limited" }, 429);
+    const len = +req.headers.get("content-length") || 0; if (len > 4096) return j({ error: "too_large" }, 413);
+    let b; try { b = await req.json(); } catch { return j({ error: "bad_json" }, 400); }
+    const v = await validateUrl(b?.url, { resolve: deps.resolve }); if (!v.ok) return j({ error: v.reason }, 400);
+    const ts = await getTargets(env.KV, acct);
+    if (ts.length >= MAX_TARGETS) return j({ error: "max_targets" }, 403);
+    if (b.alert_email && !/^[^@\s]{1,64}@[^@\s]{1,255}$/.test(b.alert_email)) return j({ error: "bad_email" }, 400);
+    ts.push({ url: v.url.toString(), alert_email: b.alert_email || null });
+    await env.KV.put(`acct:${acct}:targets`, JSON.stringify(ts)); return j({ ok: true, count: ts.length }, 201);
   }
-  if (a.forms) {
-    const rest = new URL("/wp-json/contact-form-7/v1", url).toString();
-    const rr = await get(rest); res.rest_base_status = rr.status;
-    if (![200, 401, 403].includes(rr.status)) res.problems.push(`rest_base_status:${rr.status}`);
+  if (req.method === "POST" && pathname === "/v1/check") {
+    if (!(await rateLimit(env.KV, acct, "check", MANUAL_CHECKS_PER_HOUR, 3600))) return j({ error: "rate_limited" }, 429);
+    return j((await runAccount(env, acct, deps)).map(x => x.result));
   }
-  res.result = res.problems.length ? "FAIL" : "OK";
-  return res;
+  return j({ error: "not_found" }, 404);
 }
-
-async function runAll(env) {
-  const targets = (env.TARGETS || "").split(",").map(s => s.trim()).filter(Boolean);
-  const out = [];
-  for (const u of targets) {
-    const r = await check(u);
-    console.log(JSON.stringify(r));
-    if (env.CHECKS_KV) await env.CHECKS_KV.put(`check:${r.timestamp}:${u}`, JSON.stringify(r), { expirationTtl: 60 * 60 * 24 * 30 });
-    if (env.CHECKS_DB) await env.CHECKS_DB.prepare("INSERT INTO checks (ts,url,result,json) VALUES (?,?,?,?)").bind(r.timestamp, u, r.result, JSON.stringify(r)).run();
-    out.push(r);
-  }
-  return out;
-}
-
 export default {
-  async scheduled(event, env, ctx) { ctx.waitUntil(runAll(env)); },
-  async fetch(req, env) {
-    // Manual trigger for local dev only (wrangler dev): GET /run
-    if (new URL(req.url).pathname === "/run") return Response.json(await runAll(env));
-    return new Response("FormHeartbeat worker", { status: 200 });
+  async fetch(req, env) { return handle(req, env); },
+  async scheduled(_e, env, ctx) {
+    const accts = Object.values(JSON.parse(env.API_KEYS || "{}"));
+    ctx.waitUntil(Promise.all([...new Set(accts)].map(a => runAccount(env, a))));
   },
 };

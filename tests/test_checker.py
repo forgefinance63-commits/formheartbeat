@@ -32,7 +32,15 @@ class T(unittest.TestCase):
     def test_script_404(self):
         r = checker.check(U, fake(fx("present.html"), script=404))
         self.assertIn("script_status:404", r["problems"])
-    def test_rest_locked_is_ok_but_404_fails(self):
-        self.assertEqual(checker.check(U, fake(fx("present.html"), rest=401))["result"], "OK")
+    def test_rest_classes(self):
+        self.assertEqual(checker.check(U, fake(fx("present.html"), rest=200))["rest_class"], "reachable")
+        for code in (401, 403):
+            r = checker.check(U, fake(fx("present.html"), rest=code))
+            self.assertEqual((r["result"], r["rest_class"]), ("WARN", "protected"))
         self.assertIn("rest_base_status:404", checker.check(U, fake(fx("present.html"), rest=404))["problems"])
+    def test_rest_baseline_change_fails(self):
+        r = checker.check(U, fake(fx("present.html"), rest=403), baseline={"rest_class": "reachable"})
+        self.assertEqual(r["result"], "FAIL"); self.assertIn("rest_baseline_changed:reachable->protected", r["problems"])
+        r = checker.check(U, fake(fx("present.html"), rest=403), baseline={"rest_class": "protected"})
+        self.assertEqual(r["result"], "WARN")
 if __name__ == "__main__": unittest.main()
