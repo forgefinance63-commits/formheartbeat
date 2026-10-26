@@ -1,5 +1,15 @@
 # FormHeartbeat checker (v0.1)
 
+## The promise (strictly provable)
+
+**We verify:**
+1. The page is reachable (HTTP 200, with response time).
+2. A Contact Form 7 form is present in the served HTML (`form.wpcf7-form`, plus a submit control).
+3. The CF7 assets and endpoint respond: the referenced CF7 script returns 200, and the `/wp-json/contact-form-7/v1` REST base answers (200/401/403 count as alive).
+
+**We do NOT verify** that submissions succeed or that leads arrive. No form is ever submitted, so email/SMTP delivery, spam filtering, CAPTCHA, CRM sync, and submit-time errors are all out of scope. An "OK" result means "the form is there and its plumbing answers". It does not mean "leads are being delivered".
+
+
 External, read-only health check for a WordPress page that should contain a **Contact Form 7** form.
 
 Usage: `python3 checker.py URL [URL...]` → prints JSON per URL, appends one JSON line to `logs/checks.log` (UTC timestamps). Exit code 0 = all OK, 1 = any FAIL.
@@ -26,3 +36,7 @@ Tests: `python3 -m unittest discover -s tests -v` (stdlib only, no network).
 - Forms other than CF7; forms injected purely by JS after load.
 - Content served differently to bots vs. users (WAF/geo/cookie walls).
 End-to-end delivery testing (marked test submission to an agreed inbox) is a separate, opt-in mode requiring the site owner's written permission — not implemented.
+
+## Cloudflare Worker (not deployed)
+
+`worker/` holds the same core logic as an ES-module Worker: a `scheduled()` handler on a Cron Trigger (`*/15 * * * *`), targets from the `TARGETS` var, and logs via `console.log` JSON plus optional `CHECKS_KV` / `CHECKS_DB` (D1, see `schema.sql`) bindings. Local: `node worker/test.mjs`; `npx wrangler dev --test-scheduled`. **Deploy is pending a Cloudflare API token from the owner. Do not deploy without it.**

@@ -1,0 +1,18 @@
+name = "formheartbeat"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+TARGETS = "https://contactform7.com/contact/"
+
+# Optional storage - uncomment after creating resources (requires Cloudflare account; NOT deployed yet)
+# [[kv_namespaces]]
+# binding = "CHECKS_KV"
+# id = "<kv-namespace-id>"
+# [[d1_databases]]
+# binding = "CHECKS_DB"
+# database_name = "formheartbeat"
+# database_id = "<d1-id>"
