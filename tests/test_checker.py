@@ -38,13 +38,13 @@ class T(unittest.TestCase):
         self.assertEqual(checker.check(U, fake(fx("present.html"), rest=200))["rest_class"], "reachable")
         for code in (401, 403):
             r = checker.check(U, fake(fx("present.html"), rest=code))
-            self.assertEqual((r["result"], r["rest_class"]), ("WARN", "protected"))
+            self.assertEqual((r["result"], r["rest_class"]), ("UNVERIFIABLE", "protected"))
         self.assertIn("cf7_rest_status:404", checker.check(U, fake(fx("present.html"), rest=404))["problems"])
     def test_rest_baseline_change_fails(self):
         r = checker.check(U, fake(fx("present.html"), rest=403), baseline={"rest_class": "reachable"})
         self.assertEqual(r["result"], "FAIL"); self.assertIn("rest_baseline_changed:reachable->protected", r["problems"])
         r = checker.check(U, fake(fx("present.html"), rest=403), baseline={"rest_class": "protected"})
-        self.assertEqual(r["result"], "WARN")
+        self.assertEqual(r["result"], "UNVERIFIABLE")
     def test_plugins_detected_ok(self):
         for name in ("wpforms", "gravity", "elementor", "ninja", "fluent", "generic"):
             calls = []
@@ -54,13 +54,17 @@ class T(unittest.TestCase):
     def test_elementor_free_runtime_counts_as_asset(self):
         h = fx("elementor.html").replace("/elementor-pro/assets/js/frontend.min.js", "/elementor/assets/js/webpack.runtime.min.js")
         self.assertEqual(checker.check(U, fake(h))["result"], "OK")
+    def test_optimizer_bundled_asset_unverifiable(self):
+        h = fx("elementor.html").replace('<script src="/wp-content/plugins/elementor-pro/assets/js/frontend.min.js?ver=3.2"></script>', '<script type="litespeed/javascript" data-src="/wp-content/litespeed/js/2b4a.js?ver=1"></script>')
+        r = checker.check(U, fake(h)); self.assertEqual(r["result"], "UNVERIFIABLE", r)
+        self.assertEqual(checker.check(U, fake(fx("elementor.html").replace("elementor-pro/assets/js/frontend.min.js", "x.js")))["result"], "FAIL")
     def test_plugin_asset_404_fails(self):
         for name in ("wpforms", "elementor", "ninja", "fluent", "gravity"):
             r = checker.check(U, fake(fx(name + ".html"), script=404))
             self.assertIn(f"{name}:script_status:404", r["problems"], name)
     def test_ajax_endpoint_protected_warn(self):
         r = checker.check(U, fake(fx("wpforms.html"), ajax=403))
-        self.assertEqual(r["result"], "WARN"); self.assertIn("ajax_protected:403 (cannot verify)", r["warnings"])
+        self.assertEqual(r["result"], "UNVERIFIABLE"); self.assertIn("ajax_protected:403 (cannot verify)", r["warnings"])
         self.assertEqual(checker.check(U, fake(fx("wpforms.html"), ajax=500))["result"], "FAIL")
     def test_plugin_change_vs_baseline(self):
         r = checker.check(U, fake(fx("generic.html")), baseline={"verified": True, "plugins": ["wpforms"]})
@@ -70,7 +74,7 @@ class T(unittest.TestCase):
                               ("ch_cloudflare", 503, "cloudflare"), ("ch_sucuri", 403, "sucuri"), ("ch_generic", 202, "generic"),
                               ("ch_sgcaptcha", 200, "siteground_sgcaptcha"), ("ch_modsec", 406, "modsecurity")):
             r = checker.check(U, fake(fx(f + ".html"), page_status=st))
-            self.assertEqual((r["result"], r["challenge"]), ("WARN", vendor), (f, st, r))
+            self.assertEqual((r["result"], r["challenge"]), ("UNVERIFIABLE", vendor), (f, st, r))
             self.assertEqual(r["problems"], [])
     def test_plain_403_without_markers_is_fail(self):
         self.assertEqual(checker.check(U, fake("<html>Forbidden</html>", page_status=403))["result"], "FAIL")
@@ -84,12 +88,12 @@ class T(unittest.TestCase):
         for _ in range(3):
             r = checker.check(U, fake(fx("ch_sgcaptcha.html"), page_status=202), baseline=b)
             b = checker.update_baseline(b, r); results.append(r["result"])
-        self.assertEqual(results, ["WARN", "WARN", "FAIL"])
+        self.assertEqual(results, ["UNVERIFIABLE"] * 3); self.assertEqual(r["monitoring_problem"], "bot_protection_persistent:3_checks")
         # never-verified site (always challenged) never fails
         b2 = {}
         for _ in range(5):
             r = checker.check(U, fake(fx("ch_cloudflare.html"), page_status=403), baseline=b2); b2 = checker.update_baseline(b2, r)
-            self.assertEqual(r["result"], "WARN")
+            self.assertEqual(r["result"], "UNVERIFIABLE")
         # recovery resets streak
         b = checker.update_baseline(b, checker.check(U, fake(fx("wpforms.html"))))
         self.assertEqual(b["challenge_streak"], 0)

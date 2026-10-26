@@ -7,7 +7,10 @@ from urllib.parse import urljoin, urlparse
 
 UA = "FormHeartbeat/0.3 (+uptime check; read-only; never submits forms)"
 TIMEOUT = 20
-CHALLENGE_PERSIST = 3  # consecutive challenged checks before a baseline-change problem is raised
+CHALLENGE_PERSIST = 3  # consecutive challenged checks on a previously verified site -> monitoring_problem (operator alert, not customer FAIL)
+# Result states: OK (all checks inside defined coverage passed), FAIL (detected failure), UNVERIFIABLE (blocked / protected / cannot verify).
+# Plugins with documented real-site accuracy (evidence/plugin-validation.md). Others are detected but EXPERIMENTAL.
+VALIDATED = {"wpforms", "gravity", "elementor"}  # see evidence/plugin-validation.md
 
 # name: form marker, submit marker, JS asset marker, asset required?, endpoint kind, js-rendered?
 PLUGINS = {
@@ -19,6 +22,7 @@ PLUGINS = {
     "fluent":     dict(form=r'<form[^>]*class="[^"]*frm-fluent-form', submit=r'ff-btn-submit|type="submit"', asset=r'/fluentform/[^"\']*\.js', req=True, ep="ajax"),
     "formidable": dict(form=r'<form[^>]*class="[^"]*frm-show-form', submit=r'frm_button_submit|type="submit"', asset=r'/formidable/[^"\']*\.js', req=False, ep="ajax"),
 }
+OPTIMIZER_BUNDLE = r'/wp-content/(?:litespeed/js|cache/autoptimize|cache/min|cache/wpo-minify|cache/busting|uploads/siteground-optimizer-assets|et-cache)/[^"\']*\.js|data-rocket-src=|type="rocketlazyloadscript"'
 ENDPOINTS = {"cf7_rest": "/wp-json/contact-form-7/v1", "ajax": "/wp-admin/admin-ajax.php"}
 CHALLENGE = {  # vendor: (strong markers valid even on 200, weak markers valid only on 202/403/429/503)
     "siteground_sgcaptcha": ([r'sgcaptcha'], []),
@@ -96,7 +100,7 @@ def check(url, fetch=None, baseline=None):
         res["warnings"].append(f"blocked_by_bot_protection:{ch} (cannot verify)")
         streak = baseline.get("challenge_streak", 0) + 1
         if baseline.get("verified") and streak >= CHALLENGE_PERSIST:
-            res["problems"].append(f"bot_protection_persistent_changed:{streak}_checks")
+            res["monitoring_problem"] = f"bot_protection_persistent:{streak}_checks"  # our monitoring is blocked; NOT a form failure
         return _finish(res)
     if page["status"] != 200:
         res["problems"].append(f"page_status:{page['status'] or page['error']}")
@@ -119,6 +123,9 @@ def check(url, fetch=None, baseline=None):
             if r["status"] in (405, 403): r = http(d["script_url"], "GET", fetch)
             res["checks"][f"{name}_script"] = {"url": d["script_url"], "status": r["status"], "error": r["error"]}
             if r["status"] != 200: res["problems"].append(f"{name}:script_status:{r['status'] or r['error']}")
+        elif s["req"] and re.search(OPTIMIZER_BUNDLE, page["body"], re.I):
+            # JS combined by a cache/optimizer plugin: cannot attribute the plugin's asset -> cannot verify (not a failure)
+            res["warnings"].append(f"{name}:asset_bundled_by_optimizer (cannot verify)")
         elif s["req"]:
             res["problems"].append(f"{name}:script_not_referenced")
         if s["ep"] and s["ep"] not in res["endpoints"]:
@@ -130,6 +137,7 @@ def check(url, fetch=None, baseline=None):
             elif cls == "broken": res["problems"].append(f"{s['ep']}_status:{r['status'] or r['error']}")
             b = (baseline.get("endpoints") or {}).get(s["ep"])
             if b and b != cls: res["problems"].append(f"{s['ep']}_baseline_changed:{b}->{cls}")
+    res["coverage"] = "validated" if res["plugins"] and set(res["plugins"]) <= VALIDATED else "experimental"
     if "cf7_rest" in res["endpoints"]: res["rest_class"] = res["endpoints"]["cf7_rest"]
     if baseline.get("rest_class") and res.get("rest_class") and baseline["rest_class"] != res["rest_class"] \
             and not any(x.startswith("cf7_rest_baseline") for x in res["problems"]):
@@ -137,7 +145,7 @@ def check(url, fetch=None, baseline=None):
     return _finish(res)
 
 def _finish(res):
-    res["result"] = "FAIL" if res["problems"] else ("WARN" if res["warnings"] else "OK")
+    res["result"] = "FAIL" if res["problems"] else ("UNVERIFIABLE" if res["warnings"] else "OK")
     return res
 
 def update_baseline(baseline, res):
@@ -147,7 +155,7 @@ def update_baseline(baseline, res):
         b["challenge_streak"] = b.get("challenge_streak", 0) + 1
         return b
     b["challenge_streak"] = 0
-    if res["result"] in ("OK", "WARN") and res.get("plugins") and not b.get("verified"):
+    if res["result"] in ("OK", "UNVERIFIABLE") and res.get("plugins") and not b.get("verified"):
         b.update(verified=True, plugins=res["plugins"], endpoints=res.get("endpoints", {}), set=res["timestamp"])
         if res.get("rest_class"): b["rest_class"] = res["rest_class"]
     return b

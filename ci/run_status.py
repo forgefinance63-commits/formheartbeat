@@ -14,7 +14,7 @@ baselines = json.load(open(BL)) if os.path.exists(BL) else {}
 for url, exp in TARGETS:
     r = check(url, baseline=baselines.get(url))
     baselines[url] = update_baseline(baselines.get(url), r)
-    actual = r["result"] if r["result"] in ("OK", "WARN") else "FAIL_" + "_".join(r["problems"])
+    actual = r["result"] if r["result"] in ("OK", "UNVERIFIABLE") else "FAIL_" + "_".join(r["problems"])
     line = {"ts": now.isoformat(timespec="seconds"), "event": event, "run_id": run_id, "url": url,
             "expected": exp, "actual": actual, "match": actual == exp, "detail": r}
     open("status/checks.log", "a").write(json.dumps(line) + "\n")

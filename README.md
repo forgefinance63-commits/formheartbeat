@@ -2,16 +2,24 @@
 
 ## The promise (strictly provable) — WordPress contact forms
 
-Supported: **Contact Form 7, WPForms, Gravity Forms, Elementor Forms, Ninja Forms, Fluent Forms, Formidable, and generic `<form>`s with an email field.**
+**Supported (validated on real sites, see [evidence/plugin-validation.md](evidence/plugin-validation.md)): WPForms, Gravity Forms, Elementor Forms.**
+Experimental (detected, but real-site accuracy not yet documented; results are marked `coverage: experimental`): Contact Form 7, Ninja Forms, Fluent Forms, Formidable, generic `<form>` with an email field. Generic detection is known to match newsletter forms.
+
+**Three result states:**
+- **OK**: every check below passed, within the defined coverage.
+- **FAIL**: a detected failure (page not 200, form or submit control missing, a referenced plugin script failing, an endpoint error, or a baseline change).
+- **UNVERIFIABLE**: we could not verify. Examples: a 401/403 endpoint, a bot-protection challenge, or JS combined by a cache/optimizer plugin. **Persistent bot blocking (3 consecutive checks) is a *monitoring* problem raised to the operator. It is not reported as a form failure.**
+
+**Reachability is not submit-ability.** A plugin JS asset returning 200, or `admin-ajax.php`/REST answering a GET, does **NOT** prove that the form can submit. It only shows that those pieces are reachable at check time.
 
 **We verify, from outside and only at the moment of each check (GET/HEAD requests only, a form is never submitted):**
 1. **Page reachable**: HTTP 200.
 2. **Contact form present**: the form plugin is detected by its markup, and a submit control is present. Ninja Forms renders its form with JavaScript, so for Ninja only the form container and script are checked.
 3. **Form JS asset loads**: the plugin's referenced script returns 200.
-4. **Plugin endpoint responds (GET only)**: the CF7 REST base, or `admin-ajax.php` for AJAX-submitting plugins (where 400 "0" means reachable). **401/403 → WARN "protected/blocked, cannot verify"**, never FAIL on its own.
+4. **Plugin endpoint responds (GET only)**: the CF7 REST base, or `admin-ajax.php` for AJAX-submitting plugins (where 400 "0" means reachable). **401/403 → UNVERIFIABLE**, never FAIL on its own.
 5. **Baseline change**: a site's first verified check becomes its baseline. A plugin disappearing or an endpoint class changing gives FAIL.
 
-**Bot protection.** Challenge pages are reported as **WARN "blocked by bot protection, cannot verify"**, never FAIL. This covers SiteGround sgcaptcha, Cloudflare "Just a moment", Sucuri firewall, and HTTP 202/403/429/503 responses with captcha markers. A challenge becomes a problem only if it **persists for 3 consecutive checks on a site that was previously verified**.
+**Bot protection.** Challenge pages are reported as **UNVERIFIABLE**, never FAIL. This covers SiteGround sgcaptcha, Cloudflare "Just a moment", Sucuri firewall, and HTTP 202/403/429/503 responses with captcha markers. If it **persists for 3 consecutive checks on a previously verified site**, the operator gets a `monitoring_problem` alert. The site is not marked FAIL.
 
 **Discovery** (`checker.py --scan https://site/`) checks the homepage, **every** same-site contact/get-in-touch/quote link, and `/contact`, `/contact-us`, `/get-in-touch` and `/quote`.
 

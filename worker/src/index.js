@@ -14,6 +14,9 @@ async function runOne(env, acct, t, deps = {}) {
   const r = await check(t.url, { baseline: prev?.baseline, ...deps });
   const { state, alert } = evaluate(prev, r);
   state.baseline = updateBaseline(prev?.baseline, r);
+  // persistent bot blocking = OUR monitoring problem (operator log, deduped), never a customer form-failure alert
+  if (r.monitoring_problem && !prev?.monitoring_problem) console.log(JSON.stringify({ operator_alert: r.monitoring_problem, acct, url: t.url }));
+  state.monitoring_problem = r.monitoring_problem || null;
   // minimal stored data: status fields only, no HTML
   state.last = { result: r.result, problems: r.problems, warnings: r.warnings, page_status: r.page_status, ts: r.ts };
   await env.KV.put(sk, JSON.stringify(state));

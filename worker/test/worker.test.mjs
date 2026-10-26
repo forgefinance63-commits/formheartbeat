@@ -88,12 +88,12 @@ test("REST classification: 200 OK, 401/403 WARN, 404 FAIL, baseline change FAIL"
   assert.deepEqual([200, 401, 403, 404, 500].map(restClass), ["reachable", "protected", "protected", "broken", "broken"]);
   const o = s => ({ fetchImpl: site(s), resolve: publicDNS });
   assert.equal((await check("https://s.example.com/contact/", o(200))).result, "OK");
-  assert.equal((await check("https://s.example.com/contact/", o(403))).result, "WARN");
-  assert.equal((await check("https://s.example.com/contact/", o(401))).result, "WARN");
+  assert.equal((await check("https://s.example.com/contact/", o(403))).result, "UNVERIFIABLE");
+  assert.equal((await check("https://s.example.com/contact/", o(401))).result, "UNVERIFIABLE");
   assert.equal((await check("https://s.example.com/contact/", o(404))).result, "FAIL");
   const ch = await check("https://s.example.com/contact/", { ...o(403), baseline: { rest_class: "reachable" } });
   assert.equal(ch.result, "FAIL"); assert.ok(ch.problems.includes("rest_baseline_changed:reachable->protected"));
-  assert.equal((await check("https://s.example.com/contact/", { ...o(403), baseline: { rest_class: "protected" } })).result, "WARN");
+  assert.equal((await check("https://s.example.com/contact/", { ...o(403), baseline: { rest_class: "protected" } })).result, "UNVERIFIABLE");
   const miss = await check("https://s.example.com/contact/", { fetchImpl: site(200, fx("missing")), resolve: publicDNS });
   assert.deepEqual([miss.result, miss.problems], ["FAIL", ["contact_form_missing"]]);
   const f = site(200); await check("https://s.example.com/contact/", { fetchImpl: f, resolve: publicDNS });
@@ -102,7 +102,7 @@ test("REST classification: 200 OK, 401/403 WARN, 404 FAIL, baseline change FAIL"
 
 // ---------- Alerting ----------
 test("alerting: 2 consecutive fails, dedupe, recovery, WARN is not fail", () => {
-  const F = { result: "FAIL", problems: ["cf7_form_missing"], url: "u" }, OK = { result: "OK", problems: [], url: "u" }, W = { result: "WARN", problems: [], url: "u" };
+  const F = { result: "FAIL", problems: ["cf7_form_missing"], url: "u" }, OK = { result: "OK", problems: [], url: "u" }, W = { result: "UNVERIFIABLE", problems: [], url: "u" };
   let s = null, a;
   ({ state: s, alert: a } = evaluate(s, F)); assert.equal(a, null);
   ({ state: s, alert: a } = evaluate(s, F)); assert.equal(a.type, "down");
@@ -154,19 +154,19 @@ test("detects WPForms/Gravity/Elementor/Ninja/Fluent/generic, assets checked, GE
     assert.ok(f.calls.every(c => c.method === "GET" || c.method === "HEAD"), "never POST");
     if (n !== "generic") assert.ok((await check(C, { fetchImpl: site2(fx(n), { asset: 404 }), resolve: publicDNS })).problems.includes(`${n}:script_status:404`), n);
   }
-  assert.equal((await check(C, { fetchImpl: site2(fx("wpforms"), { ajax: 403 }), resolve: publicDNS })).result, "WARN");
+  assert.equal((await check(C, { fetchImpl: site2(fx("wpforms"), { ajax: 403 }), resolve: publicDNS })).result, "UNVERIFIABLE");
 });
 test("bot challenges: WARN never FAIL; FAIL only when persistent and changed from verified baseline", async () => {
   for (const [f, st, v] of [["ch_sgcaptcha", 202, "siteground_sgcaptcha"], ["ch_cloudflare", 403, "cloudflare"], ["ch_sucuri", 403, "sucuri"], ["ch_generic", 202, "generic"], ["ch_modsec", 406, "modsecurity"]]) {
     const r = await check(C, { fetchImpl: site2(fx(f), { status: st }), resolve: publicDNS });
-    assert.deepEqual([r.result, r.challenge, r.problems], ["WARN", v, []], f);
+    assert.deepEqual([r.result, r.challenge, r.problems], ["UNVERIFIABLE", v, []], f);
   }
   assert.equal(detectChallenge(200, fx("cf_turnstile_ok")), null);
   assert.equal(detectChallenge(403, "<html>Forbidden</html>"), null);
   let b = updateBaseline(null, await check(C, { fetchImpl: site2(fx("gravity")), resolve: publicDNS }));
   const seq = [];
   for (let i = 0; i < 3; i++) { const r = await check(C, { fetchImpl: site2(fx("ch_sgcaptcha"), { status: 202 }), resolve: publicDNS, baseline: b }); b = updateBaseline(b, r); seq.push(r.result); }
-  assert.deepEqual(seq, ["WARN", "WARN", "FAIL"]);
+  assert.deepEqual(seq, ["UNVERIFIABLE", "UNVERIFIABLE", "UNVERIFIABLE"]);
   let nb = null;
-  for (let i = 0; i < 5; i++) { const r = await check(C, { fetchImpl: site2(fx("ch_cloudflare"), { status: 403 }), resolve: publicDNS, baseline: nb }); nb = updateBaseline(nb, r); assert.equal(r.result, "WARN"); }
+  for (let i = 0; i < 5; i++) { const r = await check(C, { fetchImpl: site2(fx("ch_cloudflare"), { status: 403 }), resolve: publicDNS, baseline: nb }); nb = updateBaseline(nb, r); assert.equal(r.result, "UNVERIFIABLE"); }
 });

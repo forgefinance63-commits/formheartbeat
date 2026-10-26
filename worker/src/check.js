@@ -11,6 +11,7 @@ export const PLUGINS = {
   fluent:     { form: /<form[^>]*class="[^"]*frm-fluent-form/gi, submit: /ff-btn-submit|type="submit"/i, asset: "/fluentform/[^\"']*\\.js", req: true, ep: "ajax" },
   formidable: { form: /<form[^>]*class="[^"]*frm-show-form/gi, submit: /frm_button_submit|type="submit"/i, asset: "/formidable/[^\"']*\\.js", req: false, ep: "ajax" },
 };
+const OPTIMIZER_BUNDLE = /\/wp-content\/(?:litespeed\/js|cache\/autoptimize|cache\/min|cache\/wpo-minify|cache\/busting|uploads\/siteground-optimizer-assets|et-cache)\/[^"']*\.js|data-rocket-src=|type="rocketlazyloadscript"/i;
 const ENDPOINTS = { cf7_rest: "/wp-json/contact-form-7/v1", ajax: "/wp-admin/admin-ajax.php" };
 const CHALLENGE = {
   siteground_sgcaptcha: [[/sgcaptcha/i], []],
@@ -51,7 +52,7 @@ export function endpointClass(kind, status) {
   return "broken";
 }
 export const restClass = s => endpointClass("cf7_rest", s);
-const finish = res => { res.result = res.problems.length ? "FAIL" : res.warnings.length ? "WARN" : "OK"; return res; };
+const finish = res => { res.result = res.problems.length ? "FAIL" : res.warnings.length ? "UNVERIFIABLE" : "OK"; return res; };
 
 /** Returns a minimal result object (no page bodies stored). */
 export async function check(url, { baseline = null, fetchImpl, resolve } = {}) {
@@ -64,7 +65,7 @@ export async function check(url, { baseline = null, fetchImpl, resolve } = {}) {
   if (ch) {
     res.challenge = ch; res.warnings.push(`blocked_by_bot_protection:${ch}`);
     const streak = (b.challenge_streak || 0) + 1;
-    if (b.verified && streak >= CHALLENGE_PERSIST) res.problems.push(`bot_protection_persistent_changed:${streak}_checks`);
+    if (b.verified && streak >= CHALLENGE_PERSIST) res.monitoring_problem = `bot_protection_persistent:${streak}_checks`; // operator alert, not a form failure
     return finish(res);
   }
   if (page.error) res.problems.push(`page_error:${page.error}`);
@@ -82,7 +83,8 @@ export async function check(url, { baseline = null, fetchImpl, resolve } = {}) {
     if (d.script) {
       const s = await safeFetch(new URL(d.script, page.url).toString(), { ...o, method: "HEAD" });
       if (s.status !== 200) res.problems.push(`${n}:script_status:${s.error || s.status}`);
-    } else if (p.req) res.problems.push(`${n}:script_not_referenced`);
+    } else if (p.req && OPTIMIZER_BUNDLE.test(page.body)) res.warnings.push(`${n}:asset_bundled_by_optimizer`); // cannot verify, not a failure
+    else if (p.req) res.problems.push(`${n}:script_not_referenced`);
     if (p.ep && !(p.ep in res.endpoints)) {
       const r = await safeFetch(new URL(ENDPOINTS[p.ep], page.url).toString(), o);
       const cls = endpointClass(p.ep, r.status); res.endpoints[p.ep] = cls;
@@ -99,7 +101,7 @@ export function updateBaseline(baseline, r) {
   const b = { ...(baseline || {}) };
   if (r.challenge) { b.challenge_streak = (b.challenge_streak || 0) + 1; return b; }
   b.challenge_streak = 0;
-  if ((r.result === "OK" || r.result === "WARN") && r.plugins?.length && !b.verified)
+  if ((r.result === "OK" || r.result === "UNVERIFIABLE") && r.plugins?.length && !b.verified)
     Object.assign(b, { verified: true, plugins: r.plugins, endpoints: r.endpoints, set: r.ts });
   return b;
 }
