@@ -1,2 +1,5 @@
 logs/*.log
 __pycache__/
+/private/
+prospects*.csv
+*.jsonl
