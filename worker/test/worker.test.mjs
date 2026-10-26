@@ -84,6 +84,14 @@ const site = (rest, html = fx("present")) => mockFetch({
 test("analyze fixtures", () => {
   assert.ok(analyze(fx("present")).forms === 1); assert.equal(analyze(fx("missing")).forms, 0);
 });
+test("optimizer-bundled Elementor JS -> UNVERIFIABLE; unreferenced without bundle -> FAIL", async () => {
+  const el = fx("elementor"), tag = '<script src="/wp-content/plugins/elementor-pro/assets/js/frontend.min.js?ver=3.2"></script>';
+  assert.ok(el.includes(tag));
+  const b = await check("https://s.example.com/contact/", { fetchImpl: site(200, el.replace(tag, '<script type="litespeed/javascript" data-src="/wp-content/litespeed/js/2b4a.js?ver=1"></script>')), resolve: publicDNS });
+  assert.equal(b.result, "UNVERIFIABLE"); assert.ok(b.warnings.some(w => w.startsWith("elementor:asset_bundled_by_optimizer")));
+  const n = await check("https://s.example.com/contact/", { fetchImpl: site(200, el.replace("elementor-pro/assets/js/frontend.min.js", "x.js")), resolve: publicDNS });
+  assert.equal(n.result, "FAIL"); assert.ok(n.problems.includes("elementor:script_not_referenced"));
+});
 test("REST classification: 200 OK, 401/403 WARN, 404 FAIL, baseline change FAIL", async () => {
   assert.deepEqual([200, 401, 403, 404, 500].map(restClass), ["reachable", "protected", "protected", "broken", "broken"]);
   const o = s => ({ fetchImpl: site(s), resolve: publicDNS });
@@ -132,6 +140,7 @@ test("API: auth required, max targets, rate limit, URL validation", async () => 
   assert.equal((await handle(req("POST", "v1/check", null, "x".repeat(32)), env)).status, 401);
   assert.equal((await handle(req("POST", "v1/targets", { url: "https://169.254.169.254/" }), env, { resolve: publicDNS })).status, 400);
   assert.equal((await handle(req("POST", "v1/targets", { url: "https://rebind.example.com/" }), env, { resolve: async () => ["127.0.0.1"] })).status, 400);
+  assert.equal(MAX_TARGETS, 10, "must match pilot offer: up to 10 sites");
   for (let i = 0; i < MAX_TARGETS; i++) assert.equal((await handle(req("POST", "v1/targets", { url: `https://s${i}.example.com/` }), env, { resolve: publicDNS })).status, 201);
   assert.equal((await handle(req("POST", "v1/targets", { url: "https://s9.example.com/" }), env, { resolve: publicDNS })).status, 403);
   const deps = { resolve: publicDNS, fetchImpl: mockFetch({ "*": { body: fx("present") } }) };

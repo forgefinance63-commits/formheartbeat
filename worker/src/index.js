@@ -4,7 +4,7 @@ import { validateUrl } from "./validate.js";
 import { evaluate } from "./alerting.js";
 import { createMailer } from "./email.js";
 import { authenticate, rateLimit, sha256Hex } from "./auth.js";
-export const MAX_TARGETS = 5, MANUAL_CHECKS_PER_HOUR = 6, WRITES_PER_HOUR = 20;
+export const MAX_TARGETS = 10, MANUAL_CHECKS_PER_HOUR = 6, WRITES_PER_HOUR = 20;
 const j = (o, s = 200) => Response.json(o, { status: s });
 
 async function getTargets(kv, acct) { return JSON.parse((await kv.get(`acct:${acct}:targets`)) || "[]"); }
