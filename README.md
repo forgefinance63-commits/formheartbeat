@@ -40,3 +40,11 @@ End-to-end delivery testing (marked test submission to an agreed inbox) is a sep
 ## Cloudflare Worker (not deployed)
 
 `worker/` holds the same core logic as an ES-module Worker: a `scheduled()` handler on a Cron Trigger (`*/15 * * * *`), targets from the `TARGETS` var, and logs via `console.log` JSON plus optional `CHECKS_KV` / `CHECKS_DB` (D1, see `schema.sql`) bindings. Local: `node worker/test.mjs`; `npx wrangler dev --test-scheduled`. **Deploy is pending a Cloudflare API token from the owner. Do not deploy without it.**
+
+## GitHub Actions status monitor
+
+`.github/workflows/status.yml` runs every 30 min (`*/30 * * * *`) plus `workflow_dispatch`. It checks a fixed test list with `ci/run_status.py`: contactform7.com/contact = expected `OK`, wordpress.org = expected `FAIL_cf7_form_missing`. It appends JSON lines to `status/checks.log`, rebuilds `docs/index.html` (GitHub Pages) and commits back using `GITHUB_TOKEN` (`contents: write`).
+
+**Heartbeat:** the page computes the age of the last run in the browser and shows **STALE** if there has been no run in 90 min.
+
+**Caveats:** GitHub may delay scheduled runs, especially at busy times like the top of the hour, and sometimes skips them. GitHub disables scheduled workflows in public repos after 60 days with no repository activity. The commit-back on each run counts as activity, but if runs fail before committing, the schedule can still lapse. The staleness banner is there to make that visible.
