@@ -1,40 +1,23 @@
-# FormHeartbeat checker (v0.2)
+# FormHeartbeat: WordPress contact form checker (v0.3)
 
-## The promise (strictly provable)
+## The promise (strictly provable) — WordPress contact forms
 
-**We verify, per check, and only at the moment of the check:**
-1. **Page reachable**: HTTP 200 (response time recorded).
-2. **CF7 form present**: `form.wpcf7-form` and a submit control are in the served HTML.
-3. **CF7 assets/endpoint responding**: the referenced CF7 script returns 200. The REST base `/wp-json/contact-form-7/v1` is classified as:
-   - `200` means **reachable** (OK)
-   - `401/403` means **protected/blocked, so we cannot verify it**. That gives **WARN**, not OK and not FAIL. It only becomes FAIL if it **changed from the site's recorded baseline** (e.g. reachable → protected).
-   - anything else (404, 5xx, network error) means **broken** (FAIL)
+Supported: **Contact Form 7, WPForms, Gravity Forms, Elementor Forms, Ninja Forms, Fluent Forms, Formidable, and generic `<form>`s with an email field.**
 
-**We do NOT verify, and this is NOT proof of,** form submission succeeding or leads/emails being delivered. No form is ever submitted. SMTP/mail delivery, spam filtering, CAPTCHA, CRM sync and submit-time JS errors are all out of scope.
+**We verify, from outside and only at the moment of each check (GET/HEAD requests only, a form is never submitted):**
+1. **Page reachable**: HTTP 200.
+2. **Contact form present**: the form plugin is detected by its markup, and a submit control is present. Ninja Forms renders its form with JavaScript, so for Ninja only the form container and script are checked.
+3. **Form JS asset loads**: the plugin's referenced script returns 200.
+4. **Plugin endpoint responds (GET only)**: the CF7 REST base, or `admin-ajax.php` for AJAX-submitting plugins (where 400 "0" means reachable). **401/403 → WARN "protected/blocked, cannot verify"**, never FAIL on its own.
+5. **Baseline change**: a site's first verified check becomes its baseline. A plugin disappearing or an endpoint class changing gives FAIL.
 
-**No cadence or alert-time promise yet.** We will not promise "checked every N minutes" or "alerted within N minutes" until the punctuality metrics (`metrics/`) justify it.
+**Bot protection.** Challenge pages are reported as **WARN "blocked by bot protection, cannot verify"**, never FAIL. This covers SiteGround sgcaptcha, Cloudflare "Just a moment", Sucuri firewall, and HTTP 202/403/429/503 responses with captcha markers. A challenge becomes a problem only if it **persists for 3 consecutive checks on a site that was previously verified**.
 
-## What it does (per URL)
-1. ONE `GET` of the page (UA `FormHeartbeat/0.1`, 20s timeout). Status must be 200.
-2. Parses HTML for CF7 markup: `.wpcf7` wrapper, `<form class="wpcf7-form">` count, a submit control.
-3. Finds the CF7 script (`contact-form-7/...js`) and requests it (`HEAD`, falls back to `GET` on 403/405). Must be 200.
-4. `GET /wp-json/contact-form-7/v1` (REST namespace base, no form id, no POST). 200/401/403 accepted (REST often locked down); 404, 5xx or network error = problem.
+**Discovery** (`checker.py --scan https://site/`) checks the homepage, **every** same-site contact/get-in-touch/quote link, and `/contact`, `/contact-us`, `/get-in-touch` and `/quote`.
 
-## Detects
-- Page down / non-200 / timeout / DNS-TLS errors
-- CF7 form removed from the page (e.g. shortcode broken, page rebuilt, plugin deactivated)
-- Form rendered without a submit control
-- CF7 JavaScript missing from page or returning an error (broken asset/CDN/cache)
-- CF7 REST namespace gone (plugin disabled, REST blocked by security plugin/WAF returning 404/5xx)
+**We do NOT verify, and this is NOT proof of,** a submission succeeding or a lead/email being delivered. That includes SMTP/mail delivery, spam filters, CAPTCHA on submit, CRM sync and submit-time JS errors.
 
-## Does NOT detect (important)
-- **It does not prove a lead was delivered.** It never submits the form.
-- Mail failures: SMTP/wp_mail errors, spam-foldering, wrong recipient, deliverability.
-- reCAPTCHA/Turnstile misconfiguration or JS runtime errors that only occur on submit (no browser execution).
-- Validation/field-level bugs, server-side errors that happen only on POST, CRM/webhook integrations.
-- Forms other than CF7; forms injected purely by JS after load.
-- Content served differently to bots vs. users (WAF/geo/cookie walls).
-End-to-end delivery testing (marked test submission to an agreed inbox) is a separate, opt-in mode requiring the site owner's written permission — not implemented.
+**No cadence or alert-time promise yet.** That waits until `metrics/` punctuality data justifies one.
 
 ## Cloudflare Worker (hardened, NOT deployed)
 

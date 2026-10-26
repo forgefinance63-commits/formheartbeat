@@ -1,10 +1,10 @@
 """Run checker against fixed test list, append to status/checks.log, build docs/index.html."""
 import json, os, datetime, subprocess, sys, html
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from checker import check
+from checker import check, update_baseline
 from zoneinfo import ZoneInfo
 TARGETS = [("https://contactform7.com/contact/", "OK"),
-           ("https://wordpress.org/", "FAIL_cf7_form_missing")]
+           ("https://wordpress.org/", "FAIL_contact_form_missing")]
 event = os.environ.get("GITHUB_EVENT_NAME", "local"); run_id = os.environ.get("GITHUB_RUN_ID", "")
 now = datetime.datetime.now(datetime.timezone.utc)
 os.makedirs("status", exist_ok=True); os.makedirs("docs", exist_ok=True)
@@ -13,8 +13,7 @@ BL = "status/baselines.json"
 baselines = json.load(open(BL)) if os.path.exists(BL) else {}
 for url, exp in TARGETS:
     r = check(url, baseline=baselines.get(url))
-    if r.get("rest_class") and url not in baselines:
-        baselines[url] = {"rest_class": r["rest_class"], "set": now.isoformat(timespec="seconds")}
+    baselines[url] = update_baseline(baselines.get(url), r)
     actual = r["result"] if r["result"] in ("OK", "WARN") else "FAIL_" + "_".join(r["problems"])
     line = {"ts": now.isoformat(timespec="seconds"), "event": event, "run_id": run_id, "url": url,
             "expected": exp, "actual": actual, "match": actual == exp, "detail": r}
@@ -32,7 +31,7 @@ page = f"""<!doctype html><meta charset=utf-8><title>FormHeartbeat status</title
 <div id=stale></div>
 <p>Last run: <b>{now:%Y-%m-%d %H:%M:%S} UTC</b> / <b>{il:%Y-%m-%d %H:%M:%S} Israel time</b> · event: <b>{event}</b> · run <a href="https://github.com/{os.environ.get('GITHUB_REPOSITORY','')}/actions/runs/{run_id}">{run_id}</a></p>
 <table><tr><th>URL</th><th>Expected</th><th>Actual</th><th>Match</th></tr>{tr}</table>
-<p><small>Read-only checks: page reachable, CF7 form present, CF7 script + REST base respond. Capability proof only, not a commercial service. Does NOT verify submissions or lead delivery. No check cadence or alert time is promised.</small></p>
+<p><small>Read-only checks: page reachable, WordPress contact form present (CF7, WPForms, Gravity, Elementor, Ninja, Fluent, Formidable or generic) with its JS asset and GET-only endpoint responding; bot-protection challenges are reported as WARN (cannot verify). Capability proof only, not a commercial service. Does NOT verify submissions or lead delivery. No check cadence or alert time is promised.</small></p>
 <script>
 const last=Date.parse("{now.isoformat()}");const m=(Date.now()-last)/60000;const s=document.getElementById('stale');
 if(m>90){{s.textContent='⚠️ STALE: no run for '+Math.round(m)+' min (threshold 90)';s.style.background='#fdd'}}

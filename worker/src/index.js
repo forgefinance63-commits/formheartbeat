@@ -1,5 +1,5 @@
 // FormHeartbeat Worker (NOT deployed). Authenticated API only; no public trigger.
-import { check } from "./check.js";
+import { check, updateBaseline } from "./check.js";
 import { validateUrl } from "./validate.js";
 import { evaluate } from "./alerting.js";
 import { createMailer } from "./email.js";
@@ -13,7 +13,7 @@ async function runOne(env, acct, t, deps = {}) {
   const prev = JSON.parse((await env.KV.get(sk)) || "null");
   const r = await check(t.url, { baseline: prev?.baseline, ...deps });
   const { state, alert } = evaluate(prev, r);
-  state.baseline = prev?.baseline || (r.rest_class ? { rest_class: r.rest_class, set: r.ts } : null);
+  state.baseline = updateBaseline(prev?.baseline, r);
   // minimal stored data: status fields only, no HTML
   state.last = { result: r.result, problems: r.problems, warnings: r.warnings, page_status: r.page_status, ts: r.ts };
   await env.KV.put(sk, JSON.stringify(state));
