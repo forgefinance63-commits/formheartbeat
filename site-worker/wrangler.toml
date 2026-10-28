@@ -1,0 +1,10 @@
+name = "formheartbeat-site"
+compatibility_date = "2026-10-01"
+workers_dev = true
+routes = [
+  { pattern = "getformheartbeat.com", custom_domain = true },
+  { pattern = "www.getformheartbeat.com", custom_domain = true },
+]
+
+[assets]
+directory = "../site"
