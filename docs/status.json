@@ -1,21 +1,21 @@
 {
- "last_run_utc": "2026-10-28T09:13:16+00:00",
+ "last_run_utc": "2026-10-28T10:11:48+00:00",
  "event": "schedule",
- "run_id": "40662528837",
+ "run_id": "40670166170",
  "rows": [
   {
-   "ts": "2026-10-28T09:13:16+00:00",
+   "ts": "2026-10-28T10:11:48+00:00",
    "event": "schedule",
-   "run_id": "40662528837",
+   "run_id": "40670166170",
    "url": "https://contactform7.com/contact/",
    "expected": "OK",
    "actual": "OK",
    "match": true
   },
   {
-   "ts": "2026-10-28T09:13:16+00:00",
+   "ts": "2026-10-28T10:11:48+00:00",
    "event": "schedule",
-   "run_id": "40662528837",
+   "run_id": "40670166170",
    "url": "https://wordpress.org/",
    "expected": "FAIL_contact_form_missing",
    "actual": "FAIL_contact_form_missing",
