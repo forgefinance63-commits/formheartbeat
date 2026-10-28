@@ -15,3 +15,11 @@ No SPF record added. Per Brevo docs SPF/MX are not required for shared-IP domain
 
 ## Pending
 hello@/alerts@ routing, inbound test, ALERT_FROM switch, header (SPF/DKIM/DMARC) check, Outlook test. The landing mailto stays forgefinance63@gmail.com until routing works.
+
+## Update 09:58 (Israel time): sending from own domain works
+- Brevo shows getformheartbeat.com as Authenticated (owner clicked).
+- The monitoring Worker secret `ALERT_FROM` changed to `alerts@getformheartbeat.com`. That was the only change; rollback value is kept privately.
+- Test: wordpress.org control state reset, then 2 manual checks. A `down` alert was recorded at 09:57:43.7 and Google MX received it at 09:57:45, about 2 s later.
+- Gmail result: Inbox (Updates tab), not spam. From: `"FormHeartbeat" <alerts@getformheartbeat.com>`, not rewritten.
+- Headers: `dkim=pass header.i=@getformheartbeat.com s=brevo2` (d=getformheartbeat.com, aligned); `spf=pass` for smtp.mailfrom `bounces-…@gy.d.sender-sib.com` (Brevo bounce domain, so SPF is *not* aligned); `dmarc=pass` header.from=getformheartbeat.com via aligned DKIM.
+- Limits: n=1, Gmail only. Outlook and business mailboxes are still pending, and hello@ inbound is still pending Email Routing.
