@@ -32,3 +32,10 @@ Verify: `gh run list -R forgefinance63-commits/formheartbeat -w status-check -e 
 
 ## Caveats
 Scheduled runs can be delayed or dropped. Schedules are disabled after 60 days without repo activity (the commit-back keeps the repo active). The staleness banner shows when runs stop.
+
+## 3-day review check (2026-10-28 ~07:05 UTC / 09:05 Israel)
+- GitHub Actions `status-check`: 53 runs with event == schedule (first 2026-10-26T15:06:49Z, last 2026-10-28T06:03:59Z), all success; 0 manual runs since 2026-10-26T21:06:38Z. 26 of 79 half-hour slots skipped by GitHub, max gap ~72 min, median delay 15.9 min.
+- Check log: 106 scheduled results, 0 expected/actual mismatches (positive control OK every run; negative control FAIL every run).
+- Pages status page: last run 2026-10-28T06:04Z, fresh at review time.
+- Cloudflare Worker cron (`*/15`, production path): 130 runs since 2026-10-26T22:45Z, 0 missed slots, delay p50 0.9 s / max 1.9 s; no duplicate alerts after the 2026-10-26 tests.
+- Conclusion: the service ran with no manual triggers since the last manual action. GitHub schedule remains unsuitable for any promised cadence; the Worker cron is reliable so far (n=130, ~1.4 days).
