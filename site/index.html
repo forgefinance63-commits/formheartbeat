@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FormHeartbeat — contact-form monitoring for WordPress agencies</title>
+<meta name="description" content="FormHeartbeat checks your clients' WordPress contact pages from the outside and alerts you when a form disappears or breaks.">
+<style>
+:root{--ink:#14213d;--mut:#5c677d;--acc:#0b7a5a;--bg:#f7f8fa;--line:#e3e6ec}
+*{box-sizing:border-box}body{margin:0;font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#fff}
+.w{max-width:880px;margin:0 auto;padding:0 20px}header{padding:22px 0;border-bottom:1px solid var(--line)}
+.logo{font-weight:700;font-size:20px}.logo span{color:var(--acc)}
+.hero{padding:64px 0 40px}h1{font-size:38px;line-height:1.2;margin:0 0 16px}.lead{font-size:19px;color:var(--mut);max-width:680px}
+.btn{display:inline-block;background:var(--acc);color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:18px}
+section{padding:40px 0;border-top:1px solid var(--line)}h2{font-size:26px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:18px}.card h3{margin:0 0 6px;font-size:17px}
+.st{font-weight:700}.ok{color:#0b7a5a}.fail{color:#b42318}.unv{color:#b54708}
+.price{font-size:34px;font-weight:700}.price small{font-size:16px;color:var(--mut);font-weight:400}
+ul{padding-left:20px}footer{padding:28px 0;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
+</style></head><body>
+<header><div class="w"><div class="logo">Form<span>Heartbeat</span></div></div></header>
+<main class="w">
+<div class="hero">
+<h1>Know when a client's contact form quietly breaks.</h1>
+<p class="lead">A plugin update, theme change or caching tweak can remove a WordPress form or break its script without anyone noticing, until the client asks why leads stopped. FormHeartbeat checks your clients' contact pages from the outside and emails you when something changes.</p>
+<a class="btn" href="#trial">Start a free 14-day pilot</a>
+</div>
+
+<section><h2>What it checks</h2>
+<div class="grid">
+<div class="card"><h3>Supported form plugins</h3>Contact Form 7, WPForms, Gravity Forms and Elementor forms are detected on the page you specify.</div>
+<div class="card"><h3>External, non-submitting checks</h3>We load the page like a visitor and confirm the form and its required markup are present. We never fill in or submit anything.</div>
+<div class="card"><h3>Email alerts</h3>An alert after repeated failures (not a single blip), one alert per incident, and a recovery notice when the form is back.</div>
+</div></section>
+
+<section><h2>Three honest states</h2>
+<div class="grid">
+<div class="card"><span class="st ok">OK</span> — the expected form was found on the page.</div>
+<div class="card"><span class="st fail">FAIL</span> — the page loaded but the form is missing or broken, or the page is persistently unreachable.</div>
+<div class="card"><span class="st unv">UNVERIFIABLE</span> — we could not reliably tell (for example bot protection or heavy script bundling). We report this instead of guessing.</div>
+</div></section>
+
+<section><h2>Limits, stated up front</h2>
+<ul>
+<li>FormHeartbeat does <b>not</b> submit forms.</li>
+<li>It does <b>not</b> verify that a submission reaches your inbox, CRM or any other destination. A form that is present can still fail on submit.</li>
+<li>Check frequency is best-effort; we do not guarantee a fixed cadence or alert time.</li>
+<li>It is an early-stage service run by a small team. Pilots help us decide what to build next.</li>
+</ul></section>
+
+<section id="trial"><h2>Pricing</h2>
+<div class="grid">
+<div class="card"><h3>Free pilot</h3><div class="price">$0 <small>for 14 days</small></div>No card required, no automatic charge.</div>
+<div class="card"><h3>Pilot agencies</h3><div class="price">$19 <small>/ month</small></div>Up to 10 client sites. Offered to our first pilot agencies. You are charged only if you explicitly choose to continue after the pilot.</div>
+</div>
+<p>To join a pilot, email <a href="mailto:hello@[DOMAIN]">hello@[DOMAIN]</a> with your agency name and the contact-page URLs you'd like checked.</p>
+</section>
+</main>
+<footer><div class="w">© 2026 FormHeartbeat · <a href="mailto:hello@[DOMAIN]">hello@[DOMAIN]</a></div></footer>
+</body></html>
