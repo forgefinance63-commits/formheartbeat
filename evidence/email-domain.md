@@ -29,3 +29,10 @@ hello@/alerts@ routing, inbound test, ALERT_FROM switch, header (SPF/DKIM/DMARC)
 - Destination forgefinance63@gmail.com was added and is **unverified**. Cloudflare's verification email arrived from noreply@notify.cloudflare.com and links to dash.cloudflare.com/email_fwdr/verify. Opening it from the box got a 403 with curl and was stuck on "Verifying Email" in a browser without a session, so it needs the owner's logged-in click.
 - Rules hello@ and alerts@ were rejected with error 2054 ("Destination address is not verified"). They will be created after verification.
 - The landing mailto stays forgefinance63@gmail.com until hello@ routing is proven.
+
+## Update 10:06 (Israel time): inbound routing works
+- Destination forgefinance63@gmail.com verified at 10:03:23 (owner clicked).
+- Rules created: hello@ and alerts@getformheartbeat.com forward to forgefinance63@gmail.com.
+- Test 1, Gmail to hello@ at 10:04:03: only the SENT copy appeared. Gmail suppresses a forwarded copy of your own sent message, so this test is inconclusive by design.
+- Test 2, Brevo alerts@ to hello@ at 10:04:34.7: arrived in the Gmail Inbox (Updates tab) at about 10:04:37, so ~2–3 s via Cloudflare Email Routing.
+- The landing page mailto links (5) now point to hello@getformheartbeat.com with subject "FormHeartbeat 14-day pilot". Redeployed; verified live on the apex, www and workers.dev (HTTP 200, no old address).
