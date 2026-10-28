@@ -1,4 +1,5 @@
 name = "formheartbeat-site"
+main = "src/index.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
 routes = [
@@ -8,3 +9,15 @@ routes = [
 
 [assets]
 directory = "../site"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]   # everything else is served straight from static assets
+
+[vars]
+NOTIFY_TO = "hello@getformheartbeat.com"     # owner only (forwards to the owner's inbox)
+NOTIFY_FROM = "alerts@getformheartbeat.com"  # Brevo-authenticated domain
+
+# Secrets (never in code): BREVO_API_KEY, STATS_KEY, IP_SALT
+# Pilot requests are stored in this private KV namespace, never in the repo.
+[[kv_namespaces]]
+binding = "SITE_KV"
+id = "d107d6af88c64c7a902449ccfe4d7dea"

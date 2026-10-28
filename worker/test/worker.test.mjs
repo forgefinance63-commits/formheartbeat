@@ -146,7 +146,7 @@ test("API: auth required, max targets, rate limit, URL validation", async () => 
   const deps = { resolve: publicDNS, fetchImpl: mockFetch({ "*": { body: fx("present") } }) };
   let codes = []; for (let i = 0; i < 7; i++) codes.push((await handle(req("POST", "v1/check"), env, deps)).status);
   assert.deepEqual(codes, [200, 200, 200, 200, 200, 200, 429]);
-  const stored = [...env.KV.m.entries()].filter(([k]) => k.startsWith("state:")).map(([, v]) => v).join("");
+  const stored = [...env.KV.m.entries()].filter(([k]) => k.startsWith("st:")).map(([, v]) => v).join("");
   assert.ok(!stored.includes("<form"), "no HTML stored");
 });
 
@@ -237,4 +237,18 @@ test("cron punctuality recorded and summarized; status exposes it", async () => 
   const key = "k".repeat(32); env.API_KEYS = JSON.stringify({ [await sha256Hex(key)]: "a" });
   const st = await (await handle(new Request("https://w.example/v1/status", { headers: { authorization: `Bearer ${key}` } }), env)).json();
   assert.equal(st.cron_punctuality.n, 3); assert.equal(st.alerts_email, "disabled");
+});
+// ---------- capacity (simulated day, mocked fetch) ----------
+test("capacity: 40 accounts x 10 sites x 96 ticks stays inside free-plan limits", async () => {
+  const { simulate } = await import("./loadsim.mjs"); const log = console.log; console.log = () => {};
+  let r; try { r = await simulate(40); } finally { console.log = log; }
+  assert.ok(r.kv_writes_day < 800, `kv writes ${r.kv_writes_day}`); assert.ok(r.kv_reads_day < 100_000);
+  assert.ok(r.max_subrequests_per_site_invocation <= 45); assert.ok(r.max_binding_calls_per_cron_invocation <= 40);
+  assert.equal(r.kv_writes_tick_steady, 1, "unchanged tick = only the cron log write");
+  assert.deepEqual(r.sample_results, { ok: "OK", flap: "OK", down: "FAIL contact_form_missing", redir: "OK" });
+});
+test("subrequest budget: over-budget fetches become transient, never FAIL", async () => {
+  const { budgeted } = await import("../src/index.js");
+  const d = budgeted({ fetchImpl: async () => new Response("x"), resolve: publicDNS }, 2);
+  await d.fetchImpl("a"); await d.fetchImpl("b"); await assert.rejects(d.fetchImpl("c")); assert.equal(d.meter.n, 3);
 });

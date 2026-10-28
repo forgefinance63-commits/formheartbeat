@@ -1,1 +1,10 @@
-{"private":true,"dependencies":{"wrangler":"^4.86.0"}}
+{
+ "private": true,
+ "dependencies": {
+  "wrangler": "^4.86.0"
+ },
+ "type": "module",
+ "scripts": {
+  "test": "node --test test/"
+ }
+}

@@ -1,5 +1,5 @@
 name = "formheartbeat"
-main = "src/index.js"
+main = "src/entry.js"
 compatibility_date = "2026-10-01"
 # Deployed to workers.dev (free plan). No paid features. workers_dev only, no custom routes.
 workers_dev = true
@@ -18,3 +18,9 @@ EMAIL_PROVIDER = "brevo"      # or "resend" / "mailchannels"; disabled unless se
 [[kv_namespaces]]
 binding = "KV"
 id = "9d8920a193474051be0b711049b51e70"
+
+# Self service binding: cron -> one invocation per account -> one invocation per site (own subrequest/CPU budget each).
+[[services]]
+binding = "RUNNER"
+service = "formheartbeat"
+entrypoint = "Runner"

@@ -1,0 +1,94 @@
+[
+ {
+  "accounts": 1,
+  "sites": 10,
+  "ticks": 96,
+  "shards": 1,
+  "kv_writes_day": 111,
+  "kv_reads_day": 391,
+  "kv_writes_tick_max": 3,
+  "kv_writes_tick_steady": 1,
+  "max_subrequests_per_site_invocation": 12,
+  "site_budget": 45,
+  "max_binding_calls_per_cron_invocation": 1,
+  "max_binding_calls_per_account_invocation": 10,
+  "cpu_ms_per_site_check_max": 47.91,
+  "cpu_ms_per_site_check_p95": 4.72,
+  "cpu_ms_per_site_check_avg": 1.2,
+  "sample_results": {
+   "ok": "OK",
+   "flap": "OK",
+   "down": "FAIL contact_form_missing",
+   "redir": "OK"
+  }
+ },
+ {
+  "accounts": 5,
+  "sites": 50,
+  "ticks": 96,
+  "shards": 1,
+  "kv_writes_day": 171,
+  "kv_reads_day": 1571,
+  "kv_writes_tick_max": 11,
+  "kv_writes_tick_steady": 1,
+  "max_subrequests_per_site_invocation": 12,
+  "site_budget": 45,
+  "max_binding_calls_per_cron_invocation": 5,
+  "max_binding_calls_per_account_invocation": 10,
+  "cpu_ms_per_site_check_max": 10.16,
+  "cpu_ms_per_site_check_p95": 5.37,
+  "cpu_ms_per_site_check_avg": 1.97,
+  "sample_results": {
+   "ok": "OK",
+   "flap": "OK",
+   "down": "FAIL contact_form_missing",
+   "redir": "OK"
+  }
+ },
+ {
+  "accounts": 40,
+  "sites": 400,
+  "ticks": 96,
+  "shards": 1,
+  "kv_writes_day": 696,
+  "kv_reads_day": 11896,
+  "kv_writes_tick_max": 81,
+  "kv_writes_tick_steady": 1,
+  "max_subrequests_per_site_invocation": 12,
+  "site_budget": 45,
+  "max_binding_calls_per_cron_invocation": 40,
+  "max_binding_calls_per_account_invocation": 10,
+  "cpu_ms_per_site_check_max": 20.84,
+  "cpu_ms_per_site_check_p95": 4.1,
+  "cpu_ms_per_site_check_avg": 1.75,
+  "sample_results": {
+   "ok": "OK",
+   "flap": "OK",
+   "down": "FAIL contact_form_missing",
+   "redir": "OK"
+  }
+ },
+ {
+  "accounts": 80,
+  "sites": 800,
+  "ticks": 96,
+  "shards": 2,
+  "kv_writes_day": 976,
+  "kv_reads_day": 12096,
+  "kv_writes_tick_max": 81,
+  "kv_writes_tick_steady": 1,
+  "max_subrequests_per_site_invocation": 12,
+  "site_budget": 45,
+  "max_binding_calls_per_cron_invocation": 40,
+  "max_binding_calls_per_account_invocation": 10,
+  "cpu_ms_per_site_check_max": 19.94,
+  "cpu_ms_per_site_check_p95": 4.25,
+  "cpu_ms_per_site_check_avg": 1.75,
+  "sample_results": {
+   "ok": "OK",
+   "flap": "OK",
+   "down": "FAIL contact_form_missing",
+   "redir": "OK"
+  }
+ }
+]
