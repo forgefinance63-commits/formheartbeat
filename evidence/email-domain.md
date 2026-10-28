@@ -23,3 +23,9 @@ hello@/alerts@ routing, inbound test, ALERT_FROM switch, header (SPF/DKIM/DMARC)
 - Gmail result: Inbox (Updates tab), not spam. From: `"FormHeartbeat" <alerts@getformheartbeat.com>`, not rewritten.
 - Headers: `dkim=pass header.i=@getformheartbeat.com s=brevo2` (d=getformheartbeat.com, aligned); `spf=pass` for smtp.mailfrom `bounces-…@gy.d.sender-sib.com` (Brevo bounce domain, so SPF is *not* aligned); `dmarc=pass` header.from=getformheartbeat.com via aligned DKIM.
 - Limits: n=1, Gmail only. Outlook and business mailboxes are still pending, and hello@ inbound is still pending Email Routing.
+
+## Update 10:01 (Israel time): Email Routing
+- Owner enabled Email Routing. Cloudflare added MX route1/2/3.mx.cloudflare.net, the cf2024-1._domainkey TXT and exactly one SPF at @: `v=spf1 include:_spf.mx.cloudflare.net ~all`.
+- Destination forgefinance63@gmail.com was added and is **unverified**. Cloudflare's verification email arrived from noreply@notify.cloudflare.com and links to dash.cloudflare.com/email_fwdr/verify. Opening it from the box got a 403 with curl and was stuck on "Verifying Email" in a browser without a session, so it needs the owner's logged-in click.
+- Rules hello@ and alerts@ were rejected with error 2054 ("Destination address is not verified"). They will be created after verification.
+- The landing mailto stays forgefinance63@gmail.com until hello@ routing is proven.
