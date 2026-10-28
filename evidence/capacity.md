@@ -37,4 +37,35 @@ Shared KV write budget: 1,000/day. Reserve ~150 for landing analytics (hard cap)
 - **Guaranteed floor, even if every account changed state every tick: 5 agencies / 50 sites.**
 - The binding is subrequest-safe up to 40 accounts per tick, and sharding goes beyond that. KV writes are the binding limit, not subrequests or CPU.
 - Next step if we outgrow this (owner decision, not done): move state to D1 (100k writes/day free) or Workers Paid ($5/mo).
-Caveats: CPU was measured in Node on the box, not on Cloudflare. Real pages are bigger than the fixtures, but each site now runs in its own invocation. Manual `/v1/check` writes a rate-limit counter (≤6/h per account).
+Caveats: the CPU numbers above came from Node; the real Cloudflare numbers are in the next section. Real pages are bigger than the fixtures, but each site now runs in its own invocation. Manual `/v1/check` writes a rate-limit counter (≤6/h per account).
+
+## Real Cloudflare load test (2026-10-28, 10:47–10:56 Asia/Jerusalem)
+Owner question: do service bindings' "32 Worker invocations per request" break Cron -> runAccount -> checkSite at 3+ agencies?
+
+**How fan-out is implemented:** service-binding **RPC to itself** (`[[services]] RUNNER -> formheartbeat, entrypoint Runner`). There is no `fetch()` to our own workers.dev; the docs say a same-zone global fetch to another Worker fails. The call tree per tick: 1 scheduled invocation -> N `runAccount` (pool of 6) -> 10 `checkSite` each (pool of 4). **Depth is 3**, and total invocations per tick are 1 + 11·N.
+
+**Setup:** a separate Worker `formheartbeat-loadtest` (free) with the **same production code** and its own KV namespace. It ran a `* * * * *` cron plus a test-only HTTP trigger running the same `runTick`. Synthetic agencies lt01–lt30 × 10 targets, all pointing at our own static landing page (`https://getformheartbeat.com/?lt=…`, served as a static asset with no Worker/KV involvement). Alerts were disabled. Production Worker and KV were not touched. Both the test Worker and its KV were **deleted** afterwards (404 verified). Harness: `worker/loadtest/`. Raw data: `evidence/capacity-real.json`.
+
+| Agencies × 10 | Trigger | Invocations in one request | Sites checked | Errors | Duration |
+|---|---|---|---|---|---|
+| 1 | HTTP | 11 | 10/10 | 0 | 0.24 s |
+| 3 | HTTP | 34 | 30/30 | 0 | 0.29 s |
+| 5 | HTTP | 56 | 50/50 | 0 | 1.6 s |
+| 5 | **real cron** 08:53Z | 56 | 50/50 | 0 | 0.32 s |
+| 10 | HTTP | 111 | 100/100 | 0 | 1.8 s |
+| 30 | HTTP | 331 | 300/300 | 0 | 7.0 s |
+| 30 | **real cron** 08:49Z, 08:50Z | 331 | 300/300 (×2) | 0 | 1.1 s / 2.5 s |
+
+Invocation counts were confirmed by Cloudflare GraphQL analytics: the 08:50Z minute (one cron tick, 30 agencies) shows **331 requests, 0 errors, 1,230 subrequests**.
+**CPU per invocation** (GraphQL, real): p50 2.5 ms, p99 6.5 ms, p99.9 11.3 ms at 30 agencies; p99 ≤ 9 ms in every other run. The occasional >10 ms invocation was not terminated (no `exceededCpu` status). That is headroom we should not rely on; each invocation is small because of the per-site split.
+
+**Limit probes (real, same Worker):**
+- RPC chain depth 31 -> ok. Depth 33/40 -> `Subrequest depth limit exceeded … passed through too many Workers stages`. **The "32" limit is chain depth, not total fan-out.** We use depth 3.
+- One invocation making 50 RPC calls -> ok; 51 -> `Too many subrequests by single Worker invocation`. **Service-binding calls count toward the 50 free subrequests.**
+- 50 RPC calls + 20 KV reads in one invocation -> ok. **KV ops do not count toward the 50** (they fall under the 1,000 internal-ops limit).
+- Implication: the cron invocation may call at most 50 accounts (`MAX_ACCOUNTS_PER_TICK = 40`, with sharding beyond that). `runAccount` makes 10 RPC calls plus ≤4 KV ops. `checkSite` measured 3–5 fetches (budget 45).
+
+**Result: no limit was hit at 1/3/5/10/30 agencies, so no architecture change was needed and nothing was redeployed.** Production stays on bf8858f3; its 09:00Z (11:00 Asia/Jerusalem) tick ran normally: 2/2 checked, 0 missed slots. Queues (free plan, 10k ops/day) and multi-cron sharding were evaluated but not needed. Queues would cost about 288 ops per account per day and would itself cap us at about 34 agencies.
+**KV ops per tick (code + production analytics):** reads = 1 (cron:log) + 2 per account; writes = 1 (cron:log) + ≤1 state (only on change) + ≤1 alerts (only on alert). Production's 08:45Z tick showed 4 reads and 1 write, matching that.
+**Corrected max capacity: unchanged, ~30 agencies / ~300 sites typical, 5 / 50 guaranteed.** KV writes (1k/day) are the binding limit, not invocations, depth, subrequests or CPU. Request budget at 30 agencies is 331 × 96 ≈ 32k of the 100k/day.
+Test cost: $0. The test used about 100 KV writes and about 2k requests from the shared daily free quota.

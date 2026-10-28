@@ -1,0 +1,143 @@
+{
+ "date": "2026-10-28",
+ "worker": "formheartbeat-loadtest (deleted after test)",
+ "code": "production worker/src at commit 6ea73a9, unchanged",
+ "http_trigger_runs": [
+  {
+   "agencies": 1,
+   "n": 10,
+   "counts": {
+    "OK": 10
+   },
+   "duration_ms": 240
+  },
+  {
+   "agencies": 3,
+   "duration_ms": 294,
+   "n": 30,
+   "counts": {
+    "OK": 30
+   },
+   "errors": 0
+  },
+  {
+   "agencies": 5,
+   "duration_ms": 1587,
+   "n": 50,
+   "counts": {
+    "OK": 50
+   },
+   "errors": 0
+  },
+  {
+   "agencies": 10,
+   "duration_ms": 1816,
+   "n": 100,
+   "counts": {
+    "OK": 100
+   },
+   "errors": 0
+  },
+  {
+   "agencies": 30,
+   "duration_ms": 7030,
+   "n": 300,
+   "counts": {
+    "OK": 300
+   },
+   "errors": 0
+  }
+ ],
+ "scheduled_cron_runs": [
+  {
+   "agencies": 30,
+   "scheduled": "2026-10-28T08:49:23Z",
+   "n": 300,
+   "counts": {
+    "OK": 300
+   },
+   "duration_ms": 1138
+  },
+  {
+   "agencies": 30,
+   "scheduled": "2026-10-28T08:50:23Z",
+   "n": 300,
+   "counts": {
+    "OK": 300
+   },
+   "duration_ms": 2460
+  },
+  {
+   "agencies": 5,
+   "scheduled": "2026-10-28T08:53:23Z",
+   "n": 50,
+   "counts": {
+    "OK": 50
+   },
+   "duration_ms": 316
+  }
+ ],
+ "probes": [
+  {
+   "fan": 31,
+   "ok": 31
+  },
+  {
+   "fan": 40,
+   "ok": 40
+  },
+  {
+   "fan": 60,
+   "error": "Error: Too many subrequests by single Worker invocation. To configure this limit, refer to https://developers.cloudflare.com/workers/wrangler/configuration/#limits"
+  },
+  {
+   "fan": 200,
+   "error": "Error: Too many subrequests by single Worker invocation. To configure this limit, refer to https://developers.cloudflare.com/workers/wrangler/configuration/#limits"
+  },
+  {
+   "depth": 10,
+   "ok": 10
+  },
+  {
+   "depth": 31,
+   "ok": 31
+  },
+  {
+   "depth": 33,
+   "error": "Error: Subrequest depth limit exceeded. This request passed through too many Workers stages within the Workers runtime while being handled. This can happen e.g. if you have a Worker or Durable Object "
+  },
+  {
+   "depth": 40,
+   "error": "Error: Subrequest depth limit exceeded. This request passed through too many Workers stages within the Workers runtime while being handled. This can happen e.g. if you have a Worker or Durable Object "
+  },
+  {
+   "fan": 48,
+   "ok": 48
+  },
+  {
+   "fan": 50,
+   "ok": 50
+  },
+  "{\"fan\":51,\"error\":\"Error: Too many subrequests by single Worker invocation. To configure t",
+  {
+   "fan": 45,
+   "kv": 10,
+   "ok": 45
+  },
+  {
+   "fan": 50,
+   "kv": 20,
+   "ok": 50
+  }
+ ],
+ "graphql_per_minute": [
+  "08:47 success {'errors': 0, 'requests': 13, 'subrequests': 41} {'cpuTimeP50': 3.395, 'cpuTimeP99': 8.929, 'cpuTimeP999': 8.929, 'wallTimeP99': 1542.165}",
+  "08:48 success {'errors': 0, 'requests': 136, 'subrequests': 492} {'cpuTimeP50': 1.851, 'cpuTimeP99': 6.058, 'cpuTimeP999': 7.089, 'wallTimeP99': 1653.837}",
+  "08:49 success {'errors': 0, 'requests': 773, 'subrequests': 2870} {'cpuTimeP50': 1.222, 'cpuTimeP99': 3.817, 'cpuTimeP999': 5.95, 'wallTimeP99': 1743.272}",
+  "08:50 success {'errors': 0, 'requests': 331, 'subrequests': 1230} {'cpuTimeP50': 2.485, 'cpuTimeP99': 6.471, 'cpuTimeP999': 11.252, 'wallTimeP99': 713.275}",
+  "08:51 clientDisconnected {'errors': 0, 'requests': 150, 'subrequests': 0} {'cpuTimeP50': 0.0, 'cpuTimeP99': 0.0, 'cpuTimeP999': 0.0, 'wallTimeP99': 12.488}",
+  "08:51 success {'errors': 0, 'requests': 254, 'subrequests': 425} {'cpuTimeP50': 0.124, 'cpuTimeP99': 6.053, 'cpuTimeP999': 18.255, 'wallTimeP99': 82.287}",
+  "08:52 success {'errors': 0, 'requests': 109, 'subrequests': 136} {'cpuTimeP50': 0.035, 'cpuTimeP99': 5.498, 'cpuTimeP999': 6.104, 'wallTimeP99': 263.671}",
+  "08:53 success {'errors': 0, 'requests': 56, 'subrequests': 205} {'cpuTimeP50': 1.716, 'cpuTimeP99': 5.11, 'cpuTimeP999': 5.11, 'wallTimeP99': 729.879}"
+ ]
+}
