@@ -1,12 +1,12 @@
 {
- "scheduled_runs": 704,
- "slots_in_span": 1324,
- "missed_slots": 620,
- "delay_min_median": 13.55,
+ "scheduled_runs": 705,
+ "slots_in_span": 1326,
+ "missed_slots": 621,
+ "delay_min_median": 13.6,
  "delay_min_p90": 28.1,
  "delay_min_max": 29.9,
  "span_utc": [
   "2026-10-26T15:00:00+00:00",
-  "2026-11-23T04:30:00+00:00"
+  "2026-11-23T05:30:00+00:00"
  ]
 }
